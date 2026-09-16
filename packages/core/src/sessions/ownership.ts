@@ -96,11 +96,8 @@ export function computeOwnership(
 
         // Find all valid resolutions for this cluster.
         const validResolutions = resolutions.filter((r) => {
+          // chosenSessionId must belong to this cluster (deleted sessions are never in clusterSessions).
           if (!sessionIds.includes(r.chosenSessionId)) return false;
-          // Chosen session must not be deleted.
-          const chosen = clusterSessions.find((s) => s.id === r.chosenSessionId);
-          if (!chosen) return false;
-          // slotKey must match.
           return r.slotKey === key;
         });
 

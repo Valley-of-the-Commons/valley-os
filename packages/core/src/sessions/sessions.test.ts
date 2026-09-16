@@ -336,6 +336,23 @@ describe('expandSeries — AC-b4', () => {
     ]);
   });
 
+  it('Sun+Mon weekday set emits in chronological order (Sun is calendar-last in its week)', () => {
+    // Base: Monday 2026-09-07. Rule: weekdays [0 (Sun), 1 (Mon)], 1-week interval.
+    // Week 1: Mon 09-07 ✓, Sun 09-13 ✓
+    // Week 2: Mon 09-14 ✓, Sun 09-20 ✓
+    const base = { startsAt: '2026-09-07T10:00:00Z', endsAt: '2026-09-07T11:00:00Z', roomId: 'R' };
+    const rule = { weekdays: [0, 1], intervalWeeks: 1, until: '2026-09-20' };
+    const window = { start: '2026-09-07T00:00:00Z', end: '2026-09-21T00:00:00Z' };
+
+    const occurrences = expandSeries(rule, base, window);
+    expect(occurrences.map((o) => o.startsAt)).toEqual([
+      '2026-09-07T10:00:00Z',  // Mon
+      '2026-09-13T10:00:00Z',  // Sun
+      '2026-09-14T10:00:00Z',  // Mon
+      '2026-09-20T10:00:00Z',  // Sun
+    ]);
+  });
+
   it('bi-weekly: intervalWeeks 2 skips alternating weeks', () => {
     // Mon (1) bi-weekly starting 2026-09-07
     const base = { startsAt: '2026-09-07T08:00:00Z', endsAt: '2026-09-07T09:00:00Z', roomId: 'R' };
@@ -518,13 +535,12 @@ describe('registry — AC-b7', () => {
     const attestations = [{ identifier: 'telegram:99', pubkeys: ['admin-pubkey'] }];
     const links = ingestAttestations(attestations);
 
-    // actorUid is already the canonical uid.
+    // settingsAdmin stored as its canonical id; actorUid already resolved → match.
     expect(isAdmin('telegram:99', 'telegram:99', links)).toBe(true);
 
-    // settingsAdmin is a raw telegram id, actorUid is a pubkey (already resolved upstream).
-    // isAdmin resolves settingsAdmin through registry → 'telegram:99'
-    // Then compares to actorUid 'telegram:99' → true.
-    expect(isAdmin('telegram:99', 'telegram:99', links)).toBe(true);
+    // settingsAdmin stored as a pubkey; isAdmin resolves it to 'telegram:99',
+    // which equals the already-resolved actorUid → match.
+    expect(isAdmin('telegram:99', 'admin-pubkey', links)).toBe(true);
 
     // Non-admin.
     expect(isAdmin('telegram:77', 'telegram:99', links)).toBe(false);

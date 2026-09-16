@@ -64,9 +64,10 @@ export function expandSeries(
     // Check if this cycle's Monday is already past the until date.
     if (cycleMonday > rule.until && cycle > 0) break;
 
-    for (let dow = 0; dow <= 6; dow++) {
-      if (!weekdays.has(dow)) continue;
-      // Convert dow (0=Sun) to offset from Monday.
+    // Sort weekdays by calendar offset from Monday so output is chronological
+    // (Sunday dow=0 maps to offset=6 and would otherwise emit before Mon–Sat).
+    const sortedWeekdays = [...weekdays].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7));
+    for (const dow of sortedWeekdays) {
       const offsetFromMon = (dow + 6) % 7;
       const candidateDate = addDays(cycleMonday, offsetFromMon);
 
