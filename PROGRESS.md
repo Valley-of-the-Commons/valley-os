@@ -32,8 +32,11 @@ b8 — RSVP cleanup. Blocked on Telegram bot /rsvp live-status confirmation.
   The iCal builder (generateICalFeed) is already retained and untouched.
 
 ## Next steps
-1. Deca confirms: is @HubsNetwork_bot's /rsvp feature live on the Commons Hub?
+1. Deca confirms: is @ElinorOstromBot's /rsvp feature live on the Commons Hub?
+   (The deploy's bot is @ElinorOstromBot, not @HubsNetwork_bot — the latter is the white-label name.)
+   - /rsvp IS wired via ServiceDefinitions.js:545 — the code path exists and runs.
+   - Test: send `/rsvp Test` in the VotC Telegram group. If @ElinorOstromBot replies with an inline keyboard, it's live.
    - If live: keep telegram-ui/RSVP.js; RSVP stays. Discord-ui is a separate deploy — treat separately.
-   - If dead: remove telegram-ui/RSVP.js caller; discord-ui callers; then zero-references grep passes.
+   - If dead/broken: remove telegram-ui/RSVP.js caller; discord-ui callers; then zero-references grep passes.
 2. After b8: commit + final gate.
 3. Tag `feat/v2b-sessions-core` as ready for Deca review before merging to elinor.
