@@ -964,54 +964,57 @@
       {/if}
     </div>
 
-    <!-- Private lenses: sealed on the relays, readable by the keys handed out. -->
-    <div class="field">
-      {$t("settings.privacy")}
-      <span class="sub">{$t("settings.privacySub")}</span>
-      {#if !$isLoggedIn}
-        <p class="hex-note">{$t("settings.privacyLogin")}</p>
-      {:else}
-        {#each privacyRows as lens (lens)}
-          {@const on = privacyLenses[lens] === "private"}
-          <div class="map-row">
-            <span class="map-lens"
-              >{lens}{#if on && privacyShared[lens]}<span class="shared"
-                  >{$t("settings.privacyShared", {
-                    n: privacyShared[lens],
-                  })}</span
-                >{/if}</span
-            >
-            <div class="map-lanes">
-              <button
-                type="button"
-                class="lane lock"
-                class:on
-                aria-pressed={on}
-                aria-label={$t("settings.privacyAria", {
-                  lens,
-                  state: $t(
-                    on ? "settings.privacyPrivate" : "settings.privacyPublic",
-                  ),
-                })}
-                disabled={!!privacyBusy}
-                on:click={() => togglePrivacy(lens)}
-                ><Icon name={on ? "lock" : "unlock"} /></button
+    <!-- Private lenses: sealed on the relays, readable by the keys handed out.
+         Not on the Commons Hub, whose board is public (valley-os v2). -->
+    {#if !$onCommonsHub}
+      <div class="field">
+        {$t("settings.privacy")}
+        <span class="sub">{$t("settings.privacySub")}</span>
+        {#if !$isLoggedIn}
+          <p class="hex-note">{$t("settings.privacyLogin")}</p>
+        {:else}
+          {#each privacyRows as lens (lens)}
+            {@const on = privacyLenses[lens] === "private"}
+            <div class="map-row">
+              <span class="map-lens"
+                >{lens}{#if on && privacyShared[lens]}<span class="shared"
+                    >{$t("settings.privacyShared", {
+                      n: privacyShared[lens],
+                    })}</span
+                  >{/if}</span
               >
+              <div class="map-lanes">
+                <button
+                  type="button"
+                  class="lane lock"
+                  class:on
+                  aria-pressed={on}
+                  aria-label={$t("settings.privacyAria", {
+                    lens,
+                    state: $t(
+                      on ? "settings.privacyPrivate" : "settings.privacyPublic",
+                    ),
+                  })}
+                  disabled={!!privacyBusy}
+                  on:click={() => togglePrivacy(lens)}
+                  ><Icon name={on ? "lock" : "unlock"} /></button
+                >
+              </div>
             </div>
-          </div>
-        {/each}
-        <p class="hex-note">{$t("settings.privacyHint")}</p>
-        <p class="hex-note" class:warn={!hubAuthority?.anchor}>
-          {#if hubAuthority?.anchor}
-            {$t("settings.hubKey", {
-              key: `${hubAuthority.anchor.slice(0, 8)}…`,
-            })} — {$t(hubKeySource)}
-          {:else}
-            {$t("settings.hubKeyNone")}
-          {/if}
-        </p>
-      {/if}
-    </div>
+          {/each}
+          <p class="hex-note">{$t("settings.privacyHint")}</p>
+          <p class="hex-note" class:warn={!hubAuthority?.anchor}>
+            {#if hubAuthority?.anchor}
+              {$t("settings.hubKey", {
+                key: `${hubAuthority.anchor.slice(0, 8)}…`,
+              })} — {$t(hubKeySource)}
+            {:else}
+              {$t("settings.hubKeyNone")}
+            {/if}
+          </p>
+        {/if}
+      </div>
+    {/if}
 
     <!--
       The claimed cell, configured as a federation partner: which lenses reach

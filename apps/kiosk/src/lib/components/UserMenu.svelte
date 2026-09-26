@@ -13,6 +13,7 @@
     settingsOpen,
     userMenuOpen,
     writeStanding,
+    onCommonsHub,
   } from "$lib/stores";
   import { clearBotHandoff, dashboardUrl } from "$lib/config";
   import { clearHubClaim } from "$lib/hubclaim";
@@ -102,7 +103,9 @@
     <span class="chev">›</span>
   </button>
 
-  {#if myHolonId}
+  <!-- The Commons Hub menu stays short (valley-os v2): no own-holon jump, no
+       install prompt. -->
+  {#if myHolonId && !$onCommonsHub}
     <!-- Your own holon, by its id — distinct from the displayed board. -->
     <button
       class="row"
@@ -132,7 +135,7 @@
     <span class="chev">›</span>
   </button>
 
-  {#if $installMode !== "hidden"}
+  {#if $installMode !== "hidden" && !$onCommonsHub}
     <button
       class="row"
       on:click={install}
