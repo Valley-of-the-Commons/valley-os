@@ -1,39 +1,24 @@
 /**
  * Calendar feature. `/calendar` lists upcoming scheduled events (quests with a
- * `when`) and lets members RSVP with a button; `/ical` exports the holon's
- * events as a downloadable `.ics` feed.
+ * `when`); `/ical` exports the holon's events as a downloadable `.ics` feed.
  *
  * Events themselves are created via `/event` (the quests feature) and share the
- * `quests` lens. RSVP state lives on the member's `users` record. The iCal
- * serialisation and RSVP toggling logic live in `@holons/core/calendar`.
+ * `quests` lens. The iCal serialisation lives in `@holons/core/calendar`.
  */
 import {
-  ActionRowBuilder,
   AttachmentBuilder,
-  ButtonBuilder,
-  ButtonStyle,
   EmbedBuilder,
   MessageFlags,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
-  type MessageComponentInteraction,
 } from 'discord.js';
-import {
-  buildRSVPList,
-  countAttendees,
-  generateICalFeed,
-  toggleRSVP,
-  type HolonEvent,
-  type RSVPUser,
-} from '@holons/core/calendar';
+import { generateICalFeed, type HolonEvent } from '@holons/core/calendar';
 import type { Quest } from '@holons/core/tasks';
 import type { Feature, InvocationContext } from '../types.js';
-import { encodeCustomId, type ParsedCustomId } from '../ui/customId.js';
 import { ACCENT } from '../ui/DiscordUI.js';
 
 const FEATURE_ID = 'calendar';
 const QUESTS_BUCKET = 'quests';
-const USERS_BUCKET = 'users';
 const MAX_EVENT_CARDS = 5;
 
 async function needHolon(
@@ -58,13 +43,12 @@ function upcoming(quests: Quest[]): Quest[] {
   return scheduledEvents(quests).filter(q => String(q.when) >= nowIso);
 }
 
-function eventEmbed(event: Quest, attendees: number): EmbedBuilder {
+function eventEmbed(event: Quest): EmbedBuilder {
   const when = event.when
     ? new Date(String(event.when)).toLocaleString()
     : 'unscheduled';
   const lines = [`🗓️ ${when}`];
   if (event.location) lines.push(`📍 ${event.location}`);
-  lines.push(`✅ ${attendees} attending`);
   if (event.description) lines.push(`\n${event.description}`);
   return new EmbedBuilder()
     .setColor(ACCENT)
@@ -72,24 +56,12 @@ function eventEmbed(event: Quest, attendees: number): EmbedBuilder {
     .setDescription(lines.join('\n'));
 }
 
-function eventComponents(eventId: string): ActionRowBuilder<ButtonBuilder>[] {
-  return [
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(encodeCustomId(FEATURE_ID, 'rsvp', eventId))
-        .setLabel('RSVP / Cancel')
-        .setStyle(ButtonStyle.Primary)
-        .setEmoji('✋')
-    ),
-  ];
-}
-
 export const calendarFeature: Feature = {
   id: FEATURE_ID,
   commands: [
     new SlashCommandBuilder()
       .setName('calendar')
-      .setDescription('Show upcoming events and RSVP'),
+      .setDescription('Show upcoming events'),
     new SlashCommandBuilder()
       .setName('ical')
       .setDescription('Export this holon’s events as a .ics calendar feed'),
@@ -144,16 +116,13 @@ export const calendarFeature: Feature = {
       });
       return;
     }
-    const users = ((await ctx.holosphere.getAll(ctx.holonId, USERS_BUCKET)) ??
-      []) as RSVPUser[];
     const cards = events.slice(0, MAX_EVENT_CARDS);
     await interaction.reply({
       content: `**Upcoming events** (${events.length})`,
     });
     for (const event of cards) {
       await interaction.followUp({
-        embeds: [eventEmbed(event, countAttendees(users, String(event.id)))],
-        components: eventComponents(String(event.id)),
+        embeds: [eventEmbed(event)],
       });
     }
     if (events.length > cards.length) {
@@ -162,63 +131,5 @@ export const calendarFeature: Feature = {
         flags: MessageFlags.Ephemeral,
       });
     }
-  },
-
-  async handleComponent(
-    interaction: MessageComponentInteraction,
-    parsed: ParsedCustomId,
-    ctx: InvocationContext
-  ): Promise<void> {
-    if (parsed.action !== 'rsvp') return;
-    if (!ctx.holonId) {
-      await interaction.reply({
-        content: 'This server is no longer bound to a holon.',
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-    const [eventId] = parsed.args;
-    const event = (await ctx.holosphere.get(
-      ctx.holonId,
-      QUESTS_BUCKET,
-      eventId
-    )) as Quest | null;
-    if (!event) {
-      await interaction.reply({
-        content: 'That event no longer exists.',
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    const existing = (await ctx.holosphere.get(
-      ctx.holonId,
-      USERS_BUCKET,
-      interaction.user.id
-    )) as RSVPUser | null;
-    const base: RSVPUser = existing ?? {
-      id: interaction.user.id,
-      username: interaction.user.username,
-    };
-    const updated = toggleRSVP(base, eventId);
-    await ctx.holosphere.put(ctx.holonId, USERS_BUCKET, updated);
-
-    const users = ((await ctx.holosphere.getAll(ctx.holonId, USERS_BUCKET)) ??
-      []) as RSVPUser[];
-    const attendees = buildRSVPList(users, eventId).filter(r => r.attending);
-    const embed = eventEmbed(event, attendees.length);
-    if (attendees.length > 0) {
-      embed.addFields({
-        name: 'Attending',
-        value: attendees
-          .slice(0, 20)
-          .map(a => a.name)
-          .join(', '),
-      });
-    }
-    await interaction.update({
-      embeds: [embed],
-      components: eventComponents(eventId),
-    });
   },
 };

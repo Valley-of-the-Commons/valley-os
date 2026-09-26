@@ -17,6 +17,12 @@
   --line: #e3ddcd;
   /* The one warm alarm: a shift nobody has taken, a plan the wall drifted from. */
   --warn: #c8542a;
+  /* Stars are always gold, in both themes. */
+  --star: #d9a21b;
+  /* Your own sessions' edge on the programme. */
+  --own: #8a6fc4;
+  /* A call to act (the programme's shifts glow): a true red. */
+  --alert: #e0322b;
 
   /* Post-it palette (warm, low-saturation) */
   --note-sun: #ffe79a;

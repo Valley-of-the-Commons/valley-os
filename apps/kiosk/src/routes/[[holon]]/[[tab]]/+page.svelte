@@ -1,8 +1,9 @@
 <script lang="ts">
   // SPDX-License-Identifier: AGPL-3.0-or-later
-  import { activeTab, boardReady, idle } from "$lib/stores";
+  import { activeTab, boardReady, idle, onCommonsHub } from "$lib/stores";
   import GlobalPills from "$lib/components/GlobalPills.svelte";
   import CalendarView from "$lib/views/CalendarView.svelte";
+  import ProgrammeView from "$lib/views/ProgrammeView.svelte";
   import ShiftsView from "$lib/views/ShiftsView.svelte";
   import TasksView from "$lib/views/TasksView.svelte";
   import LibraryView from "$lib/views/LibraryView.svelte";
@@ -28,10 +29,12 @@
     <GlobalPills />
     {#key $activeTab}
       <div class="view">
-        {#if $activeTab === "tasks"}
+        {#if $activeTab === "programme"}
+          <ProgrammeView />
+        {:else if $activeTab === "tasks"}
           <TasksView />
         {:else if $activeTab === "calendar"}
-          <CalendarView />
+          <CalendarView lean={$onCommonsHub} />
         {:else if $activeTab === "shifts"}
           <ShiftsView />
         {:else if $activeTab === "library"}

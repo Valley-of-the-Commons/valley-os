@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import * as calendar from './index.js';
 import {
     generateICalFeed,
     generateICal,
@@ -6,8 +7,6 @@ import {
     mapStatusToICalStatus,
     toggleRSVP,
     isAttending,
-    buildRSVPList,
-    countAttendees,
     rsvpDisplayName,
 } from './index.js';
 
@@ -115,17 +114,13 @@ describe('RSVP', () => {
         expect(isAttending(user, 'msg-42')).toBe(false);
     });
 
-    it('builds a participant list with display names', () => {
-        const users = [
-            { id: 'u1', first_name: 'Ada', participated: { 'm1': true } },
-            { id: 'u2', username: 'bob', participated: {} },
-        ];
-        const list = buildRSVPList(users, 'm1');
-        expect(list).toEqual([
-            { userId: 'u1', name: 'Ada', attending: true },
-            { userId: 'u2', name: 'bob', attending: false },
-        ]);
-        expect(countAttendees(users, 'm1')).toBe(1);
+    it('retains only the helpers the live Telegram bot and mcp-ui still call (v2b)', () => {
+        expect(calendar).not.toHaveProperty('buildRSVPList');
+        expect(calendar).not.toHaveProperty('countAttendees');
+        expect(calendar).toHaveProperty('toggleRSVP');
+        expect(calendar).toHaveProperty('isAttending');
+        expect(calendar).toHaveProperty('rsvpDisplayName');
+        expect(calendar).toHaveProperty('generateICalFeed');
     });
 
     it('falls back through display name fields', () => {

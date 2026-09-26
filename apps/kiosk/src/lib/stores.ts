@@ -4,12 +4,22 @@
 // auto-rotation controller that flips between views unless someone is touching
 // the screen.
 
-import { writable, derived, get, type Readable } from "svelte/store";
+import {
+  writable,
+  derived,
+  get,
+  type Readable,
+  type Writable,
+} from "svelte/store";
 import type { Quest } from "@holons/core/tasks";
 import type { LibraryItem } from "@holons/core/library";
 import type { Role } from "@holons/core/roles";
 import type { Checklist } from "@holons/core/checklists";
-import type { ShiftOccurrence, ShiftRsvp } from "@holons/core/shifts";
+import type {
+  IdentityAttestation,
+  ShiftOccurrence,
+  ShiftRsvp,
+} from "@holons/core/shifts";
 import {
   toEvents,
   toBacklog,
@@ -52,6 +62,12 @@ import {
   type TabPref,
 } from "./config";
 import { scopeLocal } from "./scope";
+import {
+  effectiveCalendarMode,
+  effectiveScope,
+  isCommonsHub,
+  tabsForHolon,
+} from "./hubChrome";
 import { shelfCategories, splitSpecs } from "./stock";
 import { applyTabOrder, mergeTabOrder } from "./taborder";
 import { holonColors } from "./palette";
@@ -64,6 +80,35 @@ export const holonName = writable<string>("");
 export const connected = writable<boolean>(false);
 /** The holon this kiosk displays — chosen on boot or from Settings. */
 export const holonId = writable<string | null>(null);
+/** This device is the communal board (valley-os v2c): no personal features. */
+export const boardMode = writable<boolean>(false);
+/** True on the Commons Hub board, which runs a leaner chrome (valley-os v2a). */
+export const onCommonsHub = derived(holonId, isCommonsHub);
+
+/**
+ * A per-device preference as the current holon sees it: subscribers get
+ * `adjust(holon, preference)`, while `set`/`update` write the preference
+ * itself, so a board that narrows a setting never overwrites it for others.
+ */
+function holonAdjusted<T>(
+  initial: T,
+  adjust: (holon: string | null, value: T) => T,
+): Writable<T> {
+  const preference = writable<T>(initial);
+  const effective = derived([holonId, preference], ([$holon, $value]) =>
+    adjust($holon, $value),
+  );
+  // Re-selecting what is already shown is not a new choice: skipping it keeps
+  // a preference this board narrows (e.g. Federation) intact for other boards.
+  const set = (value: T) => {
+    if (value !== get(effective)) preference.set(value);
+  };
+  return { subscribe: effective.subscribe, set, update: preference.update };
+}
+/** The holon's `settings.admin` (a bare Telegram id today); "" when unset. */
+export const holonAdmin = writable<string>("");
+/** True once the bound holon's settings record has been read (or failed to). */
+export const holonSettingsLoaded = writable<boolean>(false);
 
 /** Caretaker-set display name shown in the header; overrides the holon name. */
 export const brandName = writable<string>("");
@@ -78,7 +123,9 @@ export const accent = writable<string>("#0e6b66");
  * (this holon plus its federation partners). Persisted per device; hydrated
  * in `+layout.svelte`.
  */
-export const scope = writable<Scope>("all");
+export const scope = holonAdjusted<Scope>("all", (h, s) =>
+  effectiveScope(h, s),
+);
 
 /**
  * Whether federation partners are folded into the live subscriptions —
@@ -198,7 +245,9 @@ export const stockViewMode = writable<StockViewMode>("shelf");
 export const offersViewMode = writable<OffersViewMode>("demand");
 
 /** Calendar window: day / week / month. Persisted per device via config. */
-export const calendarMode = writable<CalendarMode>("day");
+export const calendarMode = holonAdjusted<CalendarMode>("day", (h, m) =>
+  effectiveCalendarMode(h, m),
+);
 
 /**
  * Window of the Library's booking calendar — its own, not the Calendar tab's:
@@ -278,6 +327,9 @@ export const shiftNames = writable<Map<string, string>>(new Map());
  * a sibling key would leave the board showing the person enrolled.
  */
 export const shiftIdentity = writable<Map<string, string>>(new Map());
+
+/** The raw kind-31926 attestations behind `shiftIdentity`, for the admin check. */
+export const shiftAttestations = writable<IdentityAttestation[]>([]);
 
 /**
  * False until the first schedule fetch for the current holon settles (with
@@ -452,6 +504,8 @@ export function closeDetail(): void {
 // switch re-labels the tabs live (a module const must never freeze a
 // translated string).
 export const TABS = [
+  // The Commons Hub's unified programme (valley-os v2c); only that holon shows it.
+  { id: "programme", labelKey: "tabs.programme", icon: "calendar" },
   { id: "tasks", labelKey: "tabs.tasks", icon: "pencil" },
   { id: "calendar", labelKey: "tabs.calendar", icon: "calendar" },
   { id: "shifts", labelKey: "tabs.shifts", icon: "hourglass" },
@@ -565,6 +619,7 @@ export const offersEnabled = derived(
  */
 export const visibleTabs = derived(
   [
+    holonId,
     orderedTabs,
     tasksEnabled,
     calendarEnabled,
@@ -578,6 +633,7 @@ export const visibleTabs = derived(
     offersEnabled,
   ],
   ([
+    $holon,
     $tabs,
     $tasks,
     $calendar,
@@ -590,25 +646,29 @@ export const visibleTabs = derived(
     $stock,
     $offers,
   ]) =>
-    $tabs.filter(
+    tabsForHolon($holon, $tabs).filter(
       (t) =>
-        (t.id !== "tasks" || $tasks) &&
-        (t.id !== "calendar" || $calendar) &&
-        (t.id !== "library" || $library) &&
-        (t.id !== "checklists" || $checklists) &&
-        (t.id !== "roles" || $roles) &&
-        (t.id !== "shifts" || $shifts) &&
-        (t.id !== "status" || $status) &&
-        (t.id !== "flows" || $flows) &&
-        (t.id !== "stock" || $stock) &&
-        (t.id !== "offers" || $offers),
+        t.id === "programme" ||
+        ((t.id !== "tasks" || $tasks) &&
+          (t.id !== "calendar" || $calendar) &&
+          (t.id !== "library" || $library) &&
+          (t.id !== "checklists" || $checklists) &&
+          (t.id !== "roles" || $roles) &&
+          (t.id !== "shifts" || $shifts) &&
+          (t.id !== "status" || $status) &&
+          (t.id !== "flows" || $flows) &&
+          (t.id !== "stock" || $stock) &&
+          (t.id !== "offers" || $offers)),
     ),
 );
 
 /** The tabs a caretaker could add back: in order, not currently shown. */
 export const hiddenTabs = derived(
-  [orderedTabs, visibleTabs],
-  ([$all, $shown]) => $all.filter((t) => !$shown.some((s) => s.id === t.id)),
+  [holonId, orderedTabs, visibleTabs],
+  ([$holon, $all, $shown]) =>
+    tabsForHolon($holon, $all).filter(
+      (t) => !$shown.some((s) => s.id === t.id),
+    ),
 );
 
 /**

@@ -31,6 +31,8 @@
     setTabShown,
     settingsOpen,
     showNotice,
+    onCommonsHub,
+    boardMode,
   } from "$lib/stores";
   import { showHomePage } from "$lib/home";
   import {
@@ -43,6 +45,7 @@
     DEFAULT_ACCENT,
     type ThemeMode,
     type LangMode,
+    setBoardMode,
   } from "$lib/config";
   import { themeMode } from "$lib/theme";
   import { langMode, t, tr, type MessageKey } from "$lib/i18n";
@@ -317,6 +320,11 @@
   // Touching a tab switch records an explicit on/off. Until then the pref stays
   // `auto` and the switch simply mirrors the tab's content-driven visibility —
   // so a caretaker who never opens Settings keeps the automatic behaviour.
+  function commitBoardMode(on: boolean) {
+    setBoardMode(on);
+    boardMode.set(on);
+  }
+
   // The tab switches all write through `setTabShown` — the same path the
   // tab strip's own "+" and ✕ use — so the two surfaces never disagree.
   function commitLibrary(on: boolean) {
@@ -589,212 +597,233 @@
     </div>
   </div>
 
-  <div class="field toggle-field">
-    <span class="toggle-label"
-      >{$t("settings.tasksTab")}
-      <span class="sub">{$t("settings.tasksTabSub")}</span></span
-    >
-    <button
-      type="button"
-      class="switch"
-      class:on={$tasksEnabled}
-      role="switch"
-      aria-checked={$tasksEnabled}
-      aria-label={$t("settings.tasksTabAria")}
-      on:click={() => commitTasks(!$tasksEnabled)}
-    >
-      <span class="knob"></span>
-    </button>
-  </div>
+  <!-- The Commons Hub shows only its programme; tab toggles would do nothing. -->
+  {#if !$onCommonsHub}
+    <div class="field toggle-field">
+      <span class="toggle-label"
+        >{$t("settings.tasksTab")}
+        <span class="sub">{$t("settings.tasksTabSub")}</span></span
+      >
+      <button
+        type="button"
+        class="switch"
+        class:on={$tasksEnabled}
+        role="switch"
+        aria-checked={$tasksEnabled}
+        aria-label={$t("settings.tasksTabAria")}
+        on:click={() => commitTasks(!$tasksEnabled)}
+      >
+        <span class="knob"></span>
+      </button>
+    </div>
 
-  <div class="field toggle-field">
-    <span class="toggle-label"
-      >{$t("settings.calendarTab")}
-      <span class="sub">{$t("settings.calendarTabSub")}</span></span
-    >
-    <button
-      type="button"
-      class="switch"
-      class:on={$calendarEnabled}
-      role="switch"
-      aria-checked={$calendarEnabled}
-      aria-label={$t("settings.calendarTabAria")}
-      on:click={() => commitCalendar(!$calendarEnabled)}
-    >
-      <span class="knob"></span>
-    </button>
-  </div>
+    <div class="field toggle-field">
+      <span class="toggle-label"
+        >{$t("settings.calendarTab")}
+        <span class="sub">{$t("settings.calendarTabSub")}</span></span
+      >
+      <button
+        type="button"
+        class="switch"
+        class:on={$calendarEnabled}
+        role="switch"
+        aria-checked={$calendarEnabled}
+        aria-label={$t("settings.calendarTabAria")}
+        on:click={() => commitCalendar(!$calendarEnabled)}
+      >
+        <span class="knob"></span>
+      </button>
+    </div>
 
-  <div class="field toggle-field">
-    <span class="toggle-label"
-      >{$t("settings.libraryTab")}
-      <span class="sub">{$t("settings.libraryTabSub")}</span></span
-    >
-    <button
-      type="button"
-      class="switch"
-      class:on={$libraryEnabled}
-      role="switch"
-      aria-checked={$libraryEnabled}
-      aria-label={$t("settings.libraryTabAria")}
-      on:click={() => commitLibrary(!$libraryEnabled)}
-    >
-      <span class="knob"></span>
-    </button>
-  </div>
+    <div class="field toggle-field">
+      <span class="toggle-label"
+        >{$t("settings.libraryTab")}
+        <span class="sub">{$t("settings.libraryTabSub")}</span></span
+      >
+      <button
+        type="button"
+        class="switch"
+        class:on={$libraryEnabled}
+        role="switch"
+        aria-checked={$libraryEnabled}
+        aria-label={$t("settings.libraryTabAria")}
+        on:click={() => commitLibrary(!$libraryEnabled)}
+      >
+        <span class="knob"></span>
+      </button>
+    </div>
 
-  <div class="field toggle-field">
-    <span class="toggle-label"
-      >{$t("settings.rolesTab")}
-      <span class="sub">{$t("settings.rolesTabSub")}</span></span
-    >
-    <button
-      type="button"
-      class="switch"
-      class:on={$rolesEnabled}
-      role="switch"
-      aria-checked={$rolesEnabled}
-      aria-label={$t("settings.rolesTabAria")}
-      on:click={() => commitRoles(!$rolesEnabled)}
-    >
-      <span class="knob"></span>
-    </button>
-  </div>
+    <div class="field toggle-field">
+      <span class="toggle-label"
+        >{$t("settings.rolesTab")}
+        <span class="sub">{$t("settings.rolesTabSub")}</span></span
+      >
+      <button
+        type="button"
+        class="switch"
+        class:on={$rolesEnabled}
+        role="switch"
+        aria-checked={$rolesEnabled}
+        aria-label={$t("settings.rolesTabAria")}
+        on:click={() => commitRoles(!$rolesEnabled)}
+      >
+        <span class="knob"></span>
+      </button>
+    </div>
 
-  <div class="field toggle-field">
-    <span class="toggle-label"
-      >{$t("settings.listsTab")}
-      <span class="sub">{$t("settings.listsTabSub")}</span></span
-    >
-    <button
-      type="button"
-      class="switch"
-      class:on={$checklistsEnabled}
-      role="switch"
-      aria-checked={$checklistsEnabled}
-      aria-label={$t("settings.listsTabAria")}
-      on:click={() => commitChecklists(!$checklistsEnabled)}
-    >
-      <span class="knob"></span>
-    </button>
-  </div>
+    <div class="field toggle-field">
+      <span class="toggle-label"
+        >{$t("settings.listsTab")}
+        <span class="sub">{$t("settings.listsTabSub")}</span></span
+      >
+      <button
+        type="button"
+        class="switch"
+        class:on={$checklistsEnabled}
+        role="switch"
+        aria-checked={$checklistsEnabled}
+        aria-label={$t("settings.listsTabAria")}
+        on:click={() => commitChecklists(!$checklistsEnabled)}
+      >
+        <span class="knob"></span>
+      </button>
+    </div>
 
-  <div class="field toggle-field">
-    <span class="toggle-label"
-      >{$t("settings.shiftsTab")}
-      <span class="sub">{$t("settings.shiftsTabSub")}</span></span
-    >
-    <button
-      type="button"
-      class="switch"
-      class:on={$shiftsEnabled}
-      role="switch"
-      aria-checked={$shiftsEnabled}
-      aria-label={$t("settings.shiftsTabAria")}
-      on:click={() => commitShifts(!$shiftsEnabled)}
-    >
-      <span class="knob"></span>
-    </button>
-  </div>
+    <div class="field toggle-field">
+      <span class="toggle-label"
+        >{$t("settings.shiftsTab")}
+        <span class="sub">{$t("settings.shiftsTabSub")}</span></span
+      >
+      <button
+        type="button"
+        class="switch"
+        class:on={$shiftsEnabled}
+        role="switch"
+        aria-checked={$shiftsEnabled}
+        aria-label={$t("settings.shiftsTabAria")}
+        on:click={() => commitShifts(!$shiftsEnabled)}
+      >
+        <span class="knob"></span>
+      </button>
+    </div>
 
-  <div class="field toggle-field">
-    <span class="toggle-label"
-      >{$t("settings.statusTab")}
-      <span class="sub">{$t("settings.statusTabSub")}</span></span
-    >
-    <button
-      type="button"
-      class="switch"
-      class:on={$statusEnabled}
-      role="switch"
-      aria-checked={$statusEnabled}
-      aria-label={$t("settings.statusTabAria")}
-      on:click={() => commitStatus(!$statusEnabled)}
-    >
-      <span class="knob"></span>
-    </button>
-  </div>
+    <div class="field toggle-field">
+      <span class="toggle-label"
+        >{$t("settings.statusTab")}
+        <span class="sub">{$t("settings.statusTabSub")}</span></span
+      >
+      <button
+        type="button"
+        class="switch"
+        class:on={$statusEnabled}
+        role="switch"
+        aria-checked={$statusEnabled}
+        aria-label={$t("settings.statusTabAria")}
+        on:click={() => commitStatus(!$statusEnabled)}
+      >
+        <span class="knob"></span>
+      </button>
+    </div>
 
-  <!--
+    <!--
     With the board on, the weights it scores with are settings too: the group
     that reads the board retunes it here. (The framing lives on the board
     itself and in the modal that gates switching it on.)
   -->
-  {#if $statusEnabled && $holonId}
-    <div class="field">
+    {#if $statusEnabled && $holonId}
+      <div class="field">
+        <button
+          type="button"
+          class="eq-toggle"
+          aria-expanded={eqOpen}
+          on:click={() => (eqOpen = !eqOpen)}
+        >
+          <span class="eq-toggle-label"
+            >{$t("settings.valueEquation")}
+            <span class="sub">{$t("settings.valueEquationSub")}</span></span
+          >
+          <span class="chev" class:open={eqOpen} aria-hidden="true"
+            ><Icon name="chevron-down" /></span
+          >
+        </button>
+        {#if eqOpen}
+          <ValueEquation holon={$holonId} />
+        {/if}
+      </div>
+    {/if}
+
+    <div class="field toggle-field">
+      <span class="toggle-label"
+        >{$t("settings.stockTab")}
+        <span class="sub">{$t("settings.stockTabSub")}</span></span
+      >
       <button
         type="button"
-        class="eq-toggle"
-        aria-expanded={eqOpen}
-        on:click={() => (eqOpen = !eqOpen)}
+        class="switch"
+        class:on={$stockEnabled}
+        role="switch"
+        aria-checked={$stockEnabled}
+        aria-label={$t("settings.stockTabAria")}
+        on:click={() => commitStock(!$stockEnabled)}
       >
-        <span class="eq-toggle-label"
-          >{$t("settings.valueEquation")}
-          <span class="sub">{$t("settings.valueEquationSub")}</span></span
-        >
-        <span class="chev" class:open={eqOpen} aria-hidden="true"
-          ><Icon name="chevron-down" /></span
-        >
+        <span class="knob"></span>
       </button>
-      {#if eqOpen}
-        <ValueEquation holon={$holonId} />
-      {/if}
+    </div>
+
+    <div class="field toggle-field">
+      <span class="toggle-label"
+        >{$t("settings.offersTab")}
+        <span class="sub">{$t("settings.offersTabSub")}</span></span
+      >
+      <button
+        type="button"
+        class="switch"
+        class:on={$offersEnabled}
+        role="switch"
+        aria-checked={$offersEnabled}
+        aria-label={$t("settings.offersTabAria")}
+        on:click={() => commitOffers(!$offersEnabled)}
+      >
+        <span class="knob"></span>
+      </button>
+    </div>
+
+    <div class="field toggle-field">
+      <span class="toggle-label"
+        >{$t("settings.flowsTab")}
+        <span class="sub">{$t("settings.flowsTabSub")}</span></span
+      >
+      <button
+        type="button"
+        class="switch"
+        class:on={$flowsEnabled}
+        role="switch"
+        aria-checked={$flowsEnabled}
+        aria-label={$t("settings.flowsTabAria")}
+        on:click={() => commitFlows(!$flowsEnabled)}
+      >
+        <span class="knob"></span>
+      </button>
+    </div>
+  {:else}
+    <div class="field toggle-field">
+      <span class="toggle-label"
+        >{$t("settings.boardMode")}
+        <span class="sub">{$t("settings.boardModeSub")}</span></span
+      >
+      <button
+        type="button"
+        class="switch"
+        class:on={$boardMode}
+        role="switch"
+        aria-checked={$boardMode}
+        aria-label={$t("settings.boardModeAria")}
+        on:click={() => commitBoardMode(!$boardMode)}
+      >
+        <span class="knob"></span>
+      </button>
     </div>
   {/if}
-
-  <div class="field toggle-field">
-    <span class="toggle-label"
-      >{$t("settings.stockTab")}
-      <span class="sub">{$t("settings.stockTabSub")}</span></span
-    >
-    <button
-      type="button"
-      class="switch"
-      class:on={$stockEnabled}
-      role="switch"
-      aria-checked={$stockEnabled}
-      aria-label={$t("settings.stockTabAria")}
-      on:click={() => commitStock(!$stockEnabled)}
-    >
-      <span class="knob"></span>
-    </button>
-  </div>
-
-  <div class="field toggle-field">
-    <span class="toggle-label"
-      >{$t("settings.offersTab")}
-      <span class="sub">{$t("settings.offersTabSub")}</span></span
-    >
-    <button
-      type="button"
-      class="switch"
-      class:on={$offersEnabled}
-      role="switch"
-      aria-checked={$offersEnabled}
-      aria-label={$t("settings.offersTabAria")}
-      on:click={() => commitOffers(!$offersEnabled)}
-    >
-      <span class="knob"></span>
-    </button>
-  </div>
-
-  <div class="field toggle-field">
-    <span class="toggle-label"
-      >{$t("settings.flowsTab")}
-      <span class="sub">{$t("settings.flowsTabSub")}</span></span
-    >
-    <button
-      type="button"
-      class="switch"
-      class:on={$flowsEnabled}
-      role="switch"
-      aria-checked={$flowsEnabled}
-      aria-label={$t("settings.flowsTabAria")}
-      on:click={() => commitFlows(!$flowsEnabled)}
-    >
-      <span class="knob"></span>
-    </button>
-  </div>
 
   <!--
     Per-holon, not per-device: the slug lives on the settings lens so every

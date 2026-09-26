@@ -1,6 +1,7 @@
 // @holons/core/calendar — RSVP / participation tracking
-// Pure data helpers shared by web and bot. UI-agnostic — no Telegraf,
-// no DOM. Bots own the keyboard rendering, the web app owns its UI.
+// Retained for the live Telegram /rsvp command and the mcp-ui calendar tools;
+// the rest of the RSVP path was retired in v2b (sessions replace it).
+// UI-agnostic: no Telegraf, no DOM.
 
 /** Display fields used to build a participant label. */
 export interface RSVPUser {
@@ -13,13 +14,6 @@ export interface RSVPUser {
      * stores per-message RSVP state on the user record.
      */
     participated?: Record<string, boolean | undefined> | null;
-}
-
-/** A single rendered participant entry. */
-export interface RSVPEntry {
-    userId: string | number;
-    name: string;
-    attending: boolean;
 }
 
 /** Display name for a user, falling back through the available fields. */
@@ -53,28 +47,4 @@ export function toggleRSVP<T extends RSVPUser>(
     const key = String(eventKey);
     user.participated[key] = !user.participated[key];
     return user;
-}
-
-/**
- * Build a participant list (for rendering an RSVP keyboard or web list).
- * The check-mark glyph is left to the UI layer; only the boolean state
- * and display name are produced here.
- */
-export function buildRSVPList(
-    users: RSVPUser[],
-    eventKey: string | number
-): RSVPEntry[] {
-    return (users ?? []).map((user) => ({
-        userId: user.id,
-        name: rsvpDisplayName(user),
-        attending: isAttending(user, eventKey),
-    }));
-}
-
-/** Count attendees for the given event/message key. */
-export function countAttendees(
-    users: RSVPUser[],
-    eventKey: string | number
-): number {
-    return (users ?? []).filter((u) => isAttending(u, eventKey)).length;
 }

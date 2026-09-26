@@ -43,7 +43,9 @@
     stockViewMode,
     offersViewMode,
     calendarMode,
+    holonId,
   } from "$lib/stores";
+  import { calendarModesFor, isCommonsHub } from "$lib/hubChrome";
   import {
     setTaskView,
     setTaskSort,
@@ -209,6 +211,7 @@
     stockMode: string,
     offersMode: string,
     calMode: string,
+    holon: string | null,
   ): OwnPill[] {
     if (tab === "tasks")
       return [
@@ -310,11 +313,13 @@
       return [
         {
           key: "layout",
-          options: resolve(tr, CAL_MODES),
+          // Day/Week only on the Commons Hub, and no visible "VIEW" title
+          // there (the radiogroup keeps its aria-label).
+          options: resolve(tr, calendarModesFor(holon, CAL_MODES)),
           value: calMode,
           onChange: pickCalendarMode,
           icon: "eye",
-          title: tr("pills.view"),
+          title: isCommonsHub(holon) ? "" : tr("pills.view"),
           label: tr("pills.calendarView"),
           showText: true,
         },
@@ -333,6 +338,7 @@
     $stockViewMode,
     $offersViewMode,
     $calendarMode,
+    $holonId,
   );
 
   // Status and Shifts have no layout pill of their own; the Show pill still
@@ -367,28 +373,60 @@
   }
   $: oneRow = packCount >= 0;
   // Which pill packs at the current level: the combined row is
+  // The programme tab has its own "my starred" filter instead of the Show pill.
+  $: showScope = $activeTab !== "programme";
   // [Show, ...ownPills], so own pill i packs once i >= ownPills.length - k,
   // and Show (leftmost) only at k === total.
   const ownPacked = (i: number, k: number, count: number) => i >= count - k;
 </script>
 
-<div class="gpills" bind:clientWidth={bandWidth}>
-  {#if oneRow}
-    <div class="row spread">
-      <ScopePill compact={packCount >= total} expanded={packCount < total} />
-      <div class="own">
-        {#each ownPills as p, i (p.key)}
-          {@const packed = ownPacked(i, packCount, ownPills.length)}
+<!-- The programme tab carries its own controls (and the gear) in its date bar. -->
+{#if $activeTab !== "programme"}
+  <div class="gpills" bind:clientWidth={bandWidth}>
+    {#if oneRow}
+      <div class="row spread">
+        {#if showScope}<ScopePill
+            compact={packCount >= total}
+            expanded={packCount < total}
+          />{/if}
+        <div class="own">
+          {#each ownPills as p, i (p.key)}
+            {@const packed = ownPacked(i, packCount, ownPills.length)}
+            <PillSwitch
+              compact={packed}
+              expanded={!packed}
+              options={p.options}
+              value={p.value}
+              onChange={p.onChange}
+              icon={p.icon}
+              title={p.title}
+              label={p.label}
+              showText={packed ? (p.showText ?? false) : true}
+            />
+          {/each}
+          <button
+            type="button"
+            class="gear"
+            on:click={gear.open}
+            aria-label={gearLabel}
+            title={gearLabel}
+          >
+            <Icon name="gear" />
+          </button>
+        </div>
+      </div>
+    {:else}
+      <div class="row centered">
+        {#if showScope}<ScopePill />{/if}
+        {#each ownPills as p (p.key)}
           <PillSwitch
-            compact={packed}
-            expanded={!packed}
             options={p.options}
             value={p.value}
             onChange={p.onChange}
             icon={p.icon}
             title={p.title}
             label={p.label}
-            showText={packed ? (p.showText ?? false) : true}
+            showText={p.showText ?? false}
           />
         {/each}
         <button
@@ -401,61 +439,40 @@
           <Icon name="gear" />
         </button>
       </div>
-    </div>
-  {:else}
-    <div class="row centered">
-      <ScopePill />
-      {#each ownPills as p (p.key)}
-        <PillSwitch
-          options={p.options}
-          value={p.value}
-          onChange={p.onChange}
-          icon={p.icon}
-          title={p.title}
-          label={p.label}
-          showText={p.showText ?? false}
-        />
-      {/each}
-      <button
-        type="button"
-        class="gear"
-        on:click={gear.open}
-        aria-label={gearLabel}
-        title={gearLabel}
-      >
-        <Icon name="gear" />
-      </button>
-    </div>
-  {/if}
+    {/if}
 
-  <!-- Invisible copies, one per packing level (level k = the k rightmost
+    <!-- Invisible copies, one per packing level (level k = the k rightmost
        pills compact), measured to pick the level above. -->
-  {#each levels as k (k)}
-    <div
-      class="measure"
-      aria-hidden="true"
-      inert
-      bind:clientWidth={levelWidths[k]}
-    >
-      <ScopePill compact={k >= total} expanded={k < total} />
-      {#each ownPills as p, i (p.key)}
-        {@const packed = ownPacked(i, k, ownPills.length)}
-        <PillSwitch
-          compact={packed}
-          expanded={!packed}
-          options={p.options}
-          value={p.value}
-          onChange={p.onChange}
-          icon={p.icon}
-          title={p.title}
-          label={p.label}
-          showText={packed ? (p.showText ?? false) : true}
-        />
-      {/each}
-      <span class="gear"><Icon name="gear" /></span>
-    </div>
-  {/each}
-</div>
+    {#each levels as k (k)}
+      <div
+        class="measure"
+        aria-hidden="true"
+        inert
+        bind:clientWidth={levelWidths[k]}
+      >
+        {#if showScope}<ScopePill
+            compact={k >= total}
+            expanded={k < total}
+          />{/if}
+        {#each ownPills as p, i (p.key)}
+          {@const packed = ownPacked(i, k, ownPills.length)}
+          <PillSwitch
+            compact={packed}
+            expanded={!packed}
+            options={p.options}
+            value={p.value}
+            onChange={p.onChange}
+            icon={p.icon}
+            title={p.title}
+            label={p.label}
+            showText={packed ? (p.showText ?? false) : true}
+          />
+        {/each}
+        <span class="gear"><Icon name="gear" /></span>
+      </div>
+    {/each}
+  </div>
+{/if}
 
 <style>
   /* Always on screen — the band does not follow the header chrome into

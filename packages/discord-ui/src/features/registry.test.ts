@@ -36,4 +36,12 @@ describe('feature registry', () => {
       }
     }
   });
+
+  it('has no RSVP surface (retired in v2b; the Telegram bot keeps /rsvp)', () => {
+    expect(commandIndex().has('rsvp')).toBe(false);
+    expect(featureIndex().has('rsvp')).toBe(false);
+    expect(featureIndex().get('calendar')?.handleComponent).toBeUndefined();
+    expect(commandIndex().get('calendar')?.id).toBe('calendar');
+    expect(commandIndex().get('ical')?.id).toBe('calendar');
+  });
 });

@@ -67,7 +67,7 @@ export const dashboardFeature: Feature = {
               '**Lists:** `/buy` `/shopping` `/checklists` `/agenda`',
               '**People & roles:** `/join` `/members` `/roles` `/role`',
               '**Library:** `/library`',
-              '**Comms:** `/announce` `/tag` `/rsvp`',
+              '**Comms:** `/announce` `/tag`',
               '**Admin:** `/settings` `/federation` `/dna` `/dashboard`',
             ].join('\n')
           ),

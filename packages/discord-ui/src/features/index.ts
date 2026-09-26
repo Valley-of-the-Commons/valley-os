@@ -15,7 +15,6 @@ import { libraryFeature } from './library.js';
 import { questsFeature } from './quests.js';
 import { remindersFeature } from './reminders.js';
 import { rolesFeature } from './roles.js';
-import { rsvpFeature } from './rsvp.js';
 import { scoringFeature } from './scoring.js';
 import { settingsFeature } from './settings.js';
 import { shoppingFeature } from './shopping.js';
@@ -38,7 +37,6 @@ export const features: Feature[] = [
   rolesFeature,
   announcementsFeature,
   tagsFeature,
-  rsvpFeature,
   remindersFeature,
   dashboardFeature,
 ];

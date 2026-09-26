@@ -58,11 +58,13 @@ import type { HoloSphere } from "holosphere";
 import { get, writable } from "svelte/store";
 import { currentUser } from "./auth";
 import { resolveShiftCoordinator, resolveShiftRelays } from "./config";
+import { isCommonsHub } from "./hubChrome";
 import { getHolosphere, getReaStore, subscribeLens } from "./holosphere";
 import { getSessionSecret } from "./sessionKey";
 import {
   holonId,
   rawShifts,
+  shiftAttestations,
   shiftIdentity,
   shiftNames,
   shiftsLoaded,
@@ -91,6 +93,9 @@ export const shiftSigner = writable<{
   pubkey: string;
   mode: "server" | "local";
 } | null>(null);
+
+/** False while the signer is being resolved for the current user. */
+export const shiftSignerSettled = writable<boolean>(false);
 
 /**
  * The coordinator this deploy publishes occurrences as (see
@@ -148,6 +153,15 @@ let refetchNow: (() => void) | null = null;
  * Library lens). Also resolves who the logged-in user can sign RSVPs as
  * (see `shiftSigner`). Returns a teardown function.
  */
+/**
+ * Whether the feed should run for a holon: unless the caretaker switched the
+ * Shifts tab off, and always on the Commons Hub, whose programme carries shifts
+ * as a layer (its tab toggles are hidden, so a stale "off" must not blank it).
+ */
+function feedWanted(id: string | null): id is string {
+  return !!id && (isCommonsHub(id) || get(shiftsPref) !== "off");
+}
+
 export function startShifts(): () => void {
   // No shift-relay gate any more: the feed is lens data over the ordinary
   // relays. `VITE_KIOSK_SHIFT_RELAYS` now governs only where a signup is
@@ -197,6 +211,7 @@ export function startShifts(): () => void {
       });
       shiftNames.set(attestationNameMap(atts, opts));
       shiftIdentity.set(attestationIdentityMap(atts, opts));
+      shiftAttestations.set(atts);
       if (loaded) shiftsLoaded.set(true);
     };
 
@@ -267,7 +282,7 @@ export function startShifts(): () => void {
 
   function refetch() {
     const id = get(holonId);
-    if (id && get(shiftsPref) !== "off") subscribe(id);
+    if (feedWanted(id)) subscribe(id);
   }
   refetchNow = refetch;
 
@@ -280,14 +295,17 @@ export function startShifts(): () => void {
     user: { id: number | string; provider: string } | null,
   ) {
     const my = ++signerSeq;
+    shiftSignerSettled.set(false);
     if (!user) {
       shiftSigner.set(null);
+      shiftSignerSettled.set(true);
       return;
     }
     if (user.provider !== "telegram") {
       shiftSigner.set(
         getSessionSecret() ? { pubkey: String(user.id), mode: "local" } : null,
       );
+      shiftSignerSettled.set(true);
       // The coordinator is a service identity — a key login cannot drive it,
       // but the board still wants its pubkey to tell "ours" from foreign.
       void resolveCoordinator(my);
@@ -300,8 +318,12 @@ export function startShifts(): () => void {
       shiftSigner.set(
         body?.pubkey ? { pubkey: body.pubkey, mode: "server" } : null,
       );
+      shiftSignerSettled.set(true);
     } catch {
-      if (my === signerSeq) shiftSigner.set(null);
+      if (my === signerSeq) {
+        shiftSigner.set(null);
+        shiftSignerSettled.set(true);
+      }
     }
     void resolveCoordinator(my);
   }
@@ -332,6 +354,7 @@ export function startShifts(): () => void {
     rawShifts.set({ occurrences: [], rsvps: [] });
     shiftNames.set(new Map());
     shiftIdentity.set(new Map());
+    shiftAttestations.set([]);
     shiftsLoaded.set(false);
     shiftPlan.set(null);
     shiftPlanLoaded.set(false);
@@ -339,12 +362,12 @@ export function startShifts(): () => void {
 
   const unsubHolon = holonId.subscribe((id) => {
     clear();
-    if (id && get(shiftsPref) !== "off") subscribe(id);
+    if (feedWanted(id)) subscribe(id);
   });
   // Flipping the tab off tears the subscription down and clears the data
   // (mirroring the lens subscriptions); flipping it back on re-subscribes.
   const unsubPref = shiftsPref.subscribe((pref) => {
-    if (pref === "off") {
+    if (pref === "off" && !isCommonsHub(get(holonId))) {
       clear();
     } else if (!get(shiftsLoaded)) {
       refetch();

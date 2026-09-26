@@ -36,6 +36,7 @@ const STOCK_KEY = "kiosk_stock";
 const OFFERS_KEY = "kiosk_offers";
 const STATUS_KEY = "kiosk_status";
 const FLOWS_KEY = "kiosk_flows";
+const BOARD_MODE_KEY = "kiosk_board_mode";
 const TASKS_KEY = "kiosk_tasks";
 const CALENDAR_KEY = "kiosk_calendar";
 const PINNED_KEY = "kiosk_pinned";
@@ -420,8 +421,7 @@ export function resolveShiftRelays(): string[] {
  */
 export function resolveShiftCoordinator(): string | null {
   const env = import.meta.env.VITE_KIOSK_SHIFT_COORDINATOR as
-    | string
-    | undefined;
+    string | undefined;
   const v = (env && String(env).trim().toLowerCase()) || "";
   return /^[0-9a-f]{64}$/.test(v) ? v : null;
 }
@@ -452,6 +452,19 @@ export function resolveFlowsEnabled(): boolean {
 /** Persist the Flows-tab toggle. */
 export function setFlowsEnabled(on: boolean): void {
   persist(FLOWS_KEY, on ? "1" : "0");
+}
+
+/**
+ * Whether this device is the communal board (valley-os v2c AC-c7): it runs
+ * logged-out and ambient, with no personal nudges or highlights. Off by
+ * default; a per-device choice in Settings.
+ */
+export function resolveBoardMode(): boolean {
+  return persisted(BOARD_MODE_KEY) === "1";
+}
+
+export function setBoardMode(on: boolean): void {
+  persist(BOARD_MODE_KEY, on ? "1" : "0");
 }
 
 /**

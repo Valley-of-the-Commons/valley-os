@@ -22,6 +22,7 @@
     reorderTabs,
     hiddenTabs,
     setTabShown,
+    onCommonsHub,
   } from "$lib/stores";
   import type { TabId } from "$lib/stores";
   import { moveId } from "$lib/taborder";
@@ -329,7 +330,8 @@
     <div class="brand">
       {#if $brandLogo}
         <img class="logo" src={$brandLogo} alt={brandText || "Kiosk"} />
-      {:else}
+      {:else if !$onCommonsHub}
+        <!-- The Commons Hub board runs without the wordmark (valley-os v2a). -->
         <span class="wordmark">{brandText || "kiosk"}</span>
       {/if}
     </div>
@@ -482,7 +484,8 @@
     </div>
   </div>
 
-  <div class="strip" bind:this={strip}>
+  <!-- One visible tab (the Commons Hub's programme) needs no strip. -->
+  <div class="strip" bind:this={strip} hidden={$visibleTabs.length <= 1}>
     <nav
       class="tabs"
       class:compact

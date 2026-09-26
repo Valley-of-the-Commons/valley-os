@@ -84,4 +84,5 @@ Set `DISCORD_TOKEN`, `DISCORD_APP_ID`, and (for instant dev updates)
   (`/expense` `/balances`), checklists (`/checklist`), quest appreciation.
 - ⬜ Quests deeper (time logging, on-quest checklists, scheduling/recurring).
 - ⬜ Tags, Roles/Onboarding, Scheduler/Reminders, Federation, Library, Settings.
-- ⬜ Long tail: announcements, RSVP, rounds/rotation, booking, capital game.
+- ⬜ Long tail: announcements, rounds/rotation, booking, capital game. (RSVP
+  was retired in v2b; sessions replace it.)

@@ -15,3 +15,4 @@ export * from './relay.js';
 export * from './wire.js';
 export * from './plan.js';
 export * from './ledger.js';
+export * from './nudge.js';

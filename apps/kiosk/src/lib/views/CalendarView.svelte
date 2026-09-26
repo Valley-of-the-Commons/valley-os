@@ -75,6 +75,13 @@
    * board.
    */
   export let onModeChange: ((m: CalendarMode) => void) | null = null;
+  /**
+   * The Commons Hub's lean chrome (valley-os v2a): no period heading between
+   * the arrows; the date band names the day instead.
+   */
+  export let lean = false;
+  // On the Commons Hub `calendarMode` already reads a remembered Month/Year
+  // as Week (see stores), so the grid and the view switch always agree.
   $: view = mode ?? $calendarMode;
 
   // The Show pill narrows the calendar too: under Mine only events the user
@@ -1233,7 +1240,7 @@
         on:click={() => step(-1)}
         aria-label={$t("cal.previous")}>‹</button
       >
-      <h2 class="period">{periodLabel}</h2>
+      {#if !lean}<h2 class="period">{periodLabel}</h2>{/if}
       <button class="arrow" on:click={() => step(1)} aria-label={$t("cal.next")}
         >›</button
       >
@@ -1392,10 +1399,10 @@
     {:else}
       <!-- day timeline — one column, or two (with the next day) when wide -->
       <div class="day-cols" class:twin={dayCols.length > 1}>
-        <!-- Date band: only needed with two columns (the period header already
-             names the day in single-column view). Sticks above the timeline so
-             each column's day stays visible while the hours scroll. -->
-        {#if dayCols.length > 1}
+        <!-- Date band: needed with two columns, or in the lean chrome where
+             there is no period heading to name the day. Sticks above the
+             timeline so each column's day stays visible while the hours scroll. -->
+        {#if dayCols.length > 1 || lean}
           <div class="col-heads">
             {#each dayCols as col (col.iso)}
               <div class="col-head" class:today={col.isToday}>{col.label}</div>

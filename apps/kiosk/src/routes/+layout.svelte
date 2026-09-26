@@ -25,6 +25,7 @@
     resolveOffersView,
     resolveStatusEnabled,
     resolveFlowsEnabled,
+    resolveBoardMode,
     resolveTasksEnabled,
     resolveCalendarEnabled,
     resolveTabOrder,
@@ -58,6 +59,9 @@
     partnerNames,
     brandName,
     brandLogo,
+    holonAdmin,
+    holonSettingsLoaded,
+    boardMode,
     accent,
     scope,
     federated,
@@ -118,6 +122,7 @@
   import { dockPartnersOf } from "$lib/dockfed";
   import { initAuth, loginOpen, currentUser } from "$lib/auth";
   import { startShifts } from "$lib/shifts";
+  import { hubTimezone } from "$lib/programme";
   import { startSwAutoReload } from "$lib/swUpdate";
   import type { Quest } from "@holons/core/tasks";
   import type { LibraryItem } from "@holons/core/library";
@@ -301,9 +306,19 @@
       // would wrongly pin auto-mode kiosks to English on holons that never
       // chose one — absence must fall through to the device locale.
       holonLang.set(null);
+      holonAdmin.set("");
+      holonSettingsLoaded.set(false);
+      hubTimezone.set("UTC");
       loadSettings(hs, id)
         .then((raw) => {
           if (boundHolon !== id) return;
+          holonAdmin.set(raw?.admin == null ? "" : String(raw.admin).trim());
+          hubTimezone.set(
+            typeof raw?.timezone === "string" && raw.timezone.trim()
+              ? raw.timezone.trim()
+              : "UTC",
+          );
+          holonSettingsLoaded.set(true);
           const l =
             typeof raw?.language === "string"
               ? raw.language.slice(0, 2).toLowerCase()
@@ -312,7 +327,7 @@
             l === "en" || l === "it" || l === "es" ? (l as Lang) : null,
           );
         })
-        .catch(() => {});
+        .catch(() => holonSettingsLoaded.set(true));
       // Partner display names (best-effort) for the per-item source chips.
       partnerNames.set({});
       hydratePartnerNames(hs, id);
@@ -581,6 +596,7 @@
     offersPref.set(resolveOffersPref());
     statusEnabled.set(resolveStatusEnabled());
     flowsEnabled.set(resolveFlowsEnabled());
+    boardMode.set(resolveBoardMode());
     tasksEnabled.set(resolveTasksEnabled());
     calendarEnabled.set(resolveCalendarEnabled());
     tabOrder.set(resolveTabOrder());

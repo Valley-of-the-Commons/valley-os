@@ -15,6 +15,8 @@
   export let seed: number | undefined = undefined;
   /** A wide card for sheets that carry a board preview beside a form. */
   export let wide = false;
+  /** On phones (< 768px) fill the screen as a sheet instead of a centred card. */
+  export let sheet = false;
   function close() {
     dispatch("close");
   }
@@ -32,8 +34,15 @@
     if (downOnBackdrop) close();
     downOnBackdrop = false;
   }
+  // With panels stacked (a settings panel over another), Escape closes only
+  // the topmost one.
+  let cardEl: HTMLElement;
   function onKey(e: KeyboardEvent) {
-    if (e.key === "Escape") close();
+    if (e.key !== "Escape") return;
+    const dialogs = document.querySelectorAll(
+      '[role="dialog"][aria-modal="true"]',
+    );
+    if (dialogs[dialogs.length - 1] === cardEl) close();
   }
 </script>
 
@@ -47,8 +56,10 @@
 >
   <div
     class="card"
+    bind:this={cardEl}
     class:holo
     class:wide
+    class:sheet
     style="--tint: {tint};{glow ? ` --glow: ${glow};` : ''}"
     style:--holo-seed={seed}
     role="dialog"
@@ -135,6 +146,22 @@
   .body {
     padding: 1.6rem 1.5rem 1.5rem;
     max-height: 86dvh;
+  }
+  @media (max-width: 767px) {
+    .backdrop:has(.card.sheet) {
+      padding: 0;
+    }
+    .card.sheet {
+      width: 100%;
+      height: 100dvh;
+      max-height: 100dvh;
+      border-radius: 0;
+    }
+    .card.sheet .body {
+      max-height: 100dvh;
+      height: 100%;
+      box-sizing: border-box;
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     .card {

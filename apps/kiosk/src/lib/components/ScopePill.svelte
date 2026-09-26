@@ -6,7 +6,8 @@
   // federation partners). One device-wide scope shared by all views; the
   // orthogonal Layout pill only changes how items render.
   import PillSwitch from "./PillSwitch.svelte";
-  import { scope } from "$lib/stores";
+  import { scope, holonId, activeTab } from "$lib/stores";
+  import { isCommonsHub, scopeOptionsFor } from "$lib/hubChrome";
   import { setScope, type Scope } from "$lib/config";
   import { currentUser } from "$lib/auth";
   import { t } from "$lib/i18n";
@@ -19,7 +20,7 @@
   // "Mine" needs someone to be personal about — hidden logged out, EXCEPT
   // when a persisted personal scope is active, so the pill still shows what's
   // selected (the views render their own log-in prompts).
-  $: options = [
+  $: options = scopeOptionsFor($holonId, [
     ...($currentUser || $scope === "personal"
       ? [
           {
@@ -31,7 +32,10 @@
       : []),
     { id: "all", label: $t("scope.local"), icon: "home" as const },
     { id: "networked", label: $t("scope.global"), icon: "globe" as const },
-  ];
+  ]);
+  // No visible "SHOW" title on the Commons Hub calendar tab (aria-label stays).
+  $: title =
+    isCommonsHub($holonId) && $activeTab === "calendar" ? "" : $t("scope.show");
 
   function onChange(id: string) {
     scope.set(id as Scope);
@@ -47,6 +51,6 @@
   {compact}
   {expanded}
   icon="filter"
-  title={$t("scope.show")}
+  {title}
   label={$t("scope.aria")}
 />
