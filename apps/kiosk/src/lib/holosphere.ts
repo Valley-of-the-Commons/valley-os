@@ -15,12 +15,15 @@ import {
   type HolonWriter,
 } from "@holons/core/holosphere";
 import { projectionOptionsFor } from "@holons/core/nostr";
+import { FLOW_CLAIMS_LENS } from "@holons/core/flows";
+import { GOVERNANCE_VOTES_LENS } from "@holons/core/governance";
 import { cellToLatLng } from "h3-js";
 import type { HoloSphere } from "holosphere";
 import type { LibraryDB } from "@holons/core/library";
 import type { ChecklistStore } from "@holons/core/checklists";
 import {
   resolveAppName,
+  resolveEnforceReads,
   resolveRelays,
   resolveShiftCoordinator,
 } from "./config";
@@ -81,6 +84,10 @@ export function getHolosphere(): Promise<HoloSphere> {
         shifts: { coordinatorPubkey: resolveShiftCoordinator() ?? undefined },
         shiftIdentity: {},
       },
+      // Fund claims and votes are append-only logs (kind 1808): every signed
+      // entry kept, folded by every reader the same way (see $lib/flowsClaims,
+      // $lib/governanceVotes).
+      appendLenses: [FLOW_CLAIMS_LENS, GOVERNANCE_VOTES_LENS],
       nostr: projectionOptionsFor({
         appName,
         privateKey,
@@ -89,6 +96,9 @@ export function getHolosphere(): Promise<HoloSphere> {
           (import.meta.env.VITE_HOLOSPHERE_PROJECTIONS as string | undefined),
         cellToLatLng,
       }),
+      // Authorized reads: only accepted authors' claims are shown for a holon
+      // someone is defined to speak for (VITE_HOLOSPHERE_ENFORCE=off opts out).
+      enforce: resolveEnforceReads(),
       awaitReady: true,
     });
 

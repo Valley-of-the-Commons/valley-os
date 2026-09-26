@@ -104,6 +104,7 @@ export {
   DEFAULT_ALLOCATION_CONFIG,
   allocate,
   calculateZonePercentages,
+  interiorSharePercentages,
   normalizeAllocationConfig,
   normalizeInteriorShares,
   resolveInteriorMembers,
@@ -138,6 +139,8 @@ export {
   DEFAULT_USAGE_WINDOW_DAYS,
   buildFundUsage,
   fundAccount,
+  lifetimeOf,
+  lifetimeTotals,
   rightsTotal,
   usageOf,
   usageTotals,
@@ -150,6 +153,8 @@ export {
   type FundUsageParty,
   type FundUse,
 } from './usage.js';
+
+export { SYNODIC_MONTH_DAYS, lunationAt, type Lunation } from './lunation.js';
 
 export {
   COLLECTIVE_OVERVIEW_QUERY,
@@ -197,3 +202,25 @@ export {
   saveCollectiveSlug,
   toAllocationPartners,
 } from './settings.js';
+
+export {
+  FLOW_CLAIMS_LENS,
+  buildClaim,
+  buildPayout,
+  buildClaimVerdict,
+  foldClaims,
+  claimTotalsOf,
+  isClaim,
+  isPayout,
+  type BuildClaimInput,
+  type Claim,
+  type ClaimBody,
+  type ClaimStatus,
+  type ClaimTotals,
+  type FoldClaimsInput,
+  type FoldedClaims,
+  type Payout,
+  type PayoutBody,
+  type RightsLookup,
+} from './claims.js';
+export { foldClaimsFromLenses, type ClaimsContext, type ClaimsFromLensesInput } from './claims.js';

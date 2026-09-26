@@ -29,14 +29,13 @@ import {
   toChecklists,
   toSuggestions,
   filterBySearch,
-  categoryColorMap,
 } from "./data";
 import type { SearchSuggestions, TaskSort } from "./data";
 import type { LinkedCard } from "./cardlink";
+import type { DeckState } from "./deck";
 import {
   FLIP_INTERVAL_MS,
   RESUME_AFTER_IDLE_MS,
-  IDLE_HIDE_MS,
   isPhoneDisplay,
   setPinnedTab,
   resolvePinnedTab,
@@ -109,6 +108,15 @@ function holonAdjusted<T>(
 export const holonAdmin = writable<string>("");
 /** True once the bound holon's settings record has been read (or failed to). */
 export const holonSettingsLoaded = writable<boolean>(false);
+/**
+ * Where this screen's signing key stands with the displayed holon (see
+ * `writeAcceptance` in @holons/core/holosphere): `accepted` counts, `held`
+ * means the hub has an authority and it is not this key — writes stay on
+ * this screen until it does — `open` means nobody is defined yet.
+ */
+export const writeStanding = writable<"accepted" | "held" | "open" | null>(
+  null,
+);
 
 /** Caretaker-set display name shown in the header; overrides the holon name. */
 export const brandName = writable<string>("");
@@ -118,10 +126,9 @@ export const brandLogo = writable<string>("");
 export const accent = writable<string>("#0e6b66");
 
 /**
- * Whose items the views show — the "Show" pill, shared by every view:
- * `personal` (only the logged-in user's), `all` (this holon), or `networked`
- * (this holon plus its federation partners). Persisted per device; hydrated
- * in `+layout.svelte`.
+ * What the views show — the "Show federated" switch, shared by every view:
+ * `all` (this holon's own items) or `networked` (this holon plus its
+ * federation partners). Persisted per device; hydrated in `+layout.svelte`.
  */
 export const scope = holonAdjusted<Scope>("all", (h, s) =>
   effectiveScope(h, s),
@@ -257,12 +264,15 @@ export const calendarMode = holonAdjusted<CalendarMode>("day", (h, m) =>
 export const libraryCalendarMode = writable<CalendarMode>("month");
 
 /**
- * Task ids the swipe deck has dealt with this session — skipped, joined, or
- * liked — so the deck strictly advances. A module store (not component state)
- * because tab auto-rotation remounts the Tasks view every flip; deliberately
- * never persisted, so skipped cards return next session.
+ * Everyone's progress through the swipe deck, keyed by `deckKey(hub, person)`
+ * ($lib/deck): which cards they dealt with — skipped, joined, or liked — and
+ * the frozen order theirs were dealt in. One entry per hub and person, so a
+ * shared screen never hands someone the previous visitor's deck and a hub
+ * switch can't hide a card over a colliding id. A module store (not component
+ * state) because tab auto-rotation remounts the Tasks view every flip;
+ * deliberately never persisted, so skipped cards return next session.
  */
-export const swipeDismissed = writable<Set<string>>(new Set());
+export const swipeDecks = writable<Map<string, DeckState>>(new Map());
 
 // ── Transient notice (toast) ───────────────────────────────────────────────
 //
@@ -374,12 +384,6 @@ export const backlog = derived(
   [rawQuests, partnerNames, searchQuery, scope, taskSort, t, holonColors],
   ([$q, $n, $query, $s, $sort, $t, $c]) =>
     filterBySearch(toBacklog(scopeLocal($q, $s), $n, $sort, $t, $c), $query),
-);
-// One palette slot per distinct category, derived from *all* quests (not a
-// search- or scope-filtered subset) so a category keeps the same colour across
-// the calendar and the task wall, and doesn't shift as the filters narrow.
-export const categoryColors = derived(rawQuests, ($q) =>
-  categoryColorMap($q.map((x) => x.category)),
 );
 export const things = derived(
   [rawLibrary, partnerNames, searchQuery, scope, t, holonColors],
@@ -789,6 +793,7 @@ export function startClock(): () => void {
 // the page is revealed. `flipAt` drives the thin progress bar so the screen
 // telegraphs the next move.
 
+/** True once the screen is unattended (also on displays that never flip). */
 export const rotating = writable<boolean>(false);
 /** Wall-clock time (ms) of the next scheduled flip, or null while paused. */
 export const flipAt = writable<number | null>(null);
@@ -802,17 +807,7 @@ export const flipAt = writable<number | null>(null);
 export const autoRotates = writable<boolean>(true);
 
 /**
- * Whether the header chrome is tucked away for an immersive board. Starts
- * true (an unattended kiosk shows the board, not the chrome). Only a
- * deliberate reach brings it back — `revealChrome`, wired in the layout to a
- * swipe down from the top edge or the mouse touching it — never a plain tap
- * on the board; using the chrome while it is up keeps it up
- * (`noteInteraction`), and IDLE_HIDE_MS of stillness tucks it away again.
- */
-export const idle = writable<boolean>(true);
-
-/**
- * When true, auto-rotation is suspended regardless of the idle/resume timers —
+ * When true, auto-rotation is suspended regardless of the resume timer —
  * a view holds this while an overlay it owns is open (e.g. the Status score
  * breakdown) so the screen can't flip out from under someone reading it.
  */
@@ -843,7 +838,6 @@ export function offerSettings(entry: ViewSettings): () => void {
 
 let tickTimer: ReturnType<typeof setInterval> | null = null;
 let resumeTimer: ReturnType<typeof setTimeout> | null = null;
-let idleTimer: ReturnType<typeof setTimeout> | null = null;
 
 function scheduleFlip() {
   // A pinned kiosk or a phone never advances, so don't arm the progress bar.
@@ -912,39 +906,18 @@ export function startRotation(): () => void {
       document.removeEventListener("visibilitychange", onVisibility);
     if (tickTimer) clearInterval(tickTimer);
     if (resumeTimer) clearTimeout(resumeTimer);
-    if (idleTimer) clearTimeout(idleTimer);
     tickTimer = null;
     resumeTimer = null;
-    idleTimer = null;
   };
-}
-
-function armChromeHide() {
-  if (idleTimer) clearTimeout(idleTimer);
-  idleTimer = setTimeout(() => idle.set(true), IDLE_HIDE_MS);
 }
 
 /**
  * Call on any user interaction: pause rotation and arm the rotation-resume
- * timer so the screen self-advances again once everyone walks away. It does
- * NOT bring the chrome out — a tap on the board is about the board — but
- * while the chrome is up, interaction keeps it up (the hide countdown
- * restarts), so a search or a tab change never has the bar vanish mid-use.
+ * timer so the screen self-advances again once everyone walks away.
  */
 export function noteInteraction() {
   pauseRotation();
   armResume();
-  if (!get(idle)) armChromeHide();
-}
-
-/**
- * Bring the header chrome out — a swipe down from the top edge, or the mouse
- * reaching it (see the layout). Counts as interaction too, and starts the
- * countdown that tucks the chrome away again.
- */
-export function revealChrome() {
-  idle.set(false);
-  noteInteraction();
 }
 
 /** Manually select a tab by id (also counts as an interaction). */

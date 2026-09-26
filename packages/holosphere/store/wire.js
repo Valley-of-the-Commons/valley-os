@@ -13,32 +13,100 @@
 // `decode` returns an ARRAY because one event may claim several addresses at
 // once: a NIP-09 kind 5 retracts every coordinate named in its `a` tags.
 
-import { HOLOSPHERE_KIND, eventToItem, tag } from '../nostr-events.js';
+import { HOLOSPHERE_KIND, HOLOSPHERE_LOG_KIND, eventToItem, logRefs, tag } from '../nostr-events.js';
 import { GLOBAL_HOLON } from './address.js';
+import { isSealed, lockedStub } from './sealed.js';
 
 /** NIP-09 retraction. */
 const DELETE_KIND = 5;
+
+/**
+ * The wire of an APPEND-ONLY lens: a regular kind (1808) whose every event is
+ * its own record, addressed by the event id. Nothing at such an address is
+ * ever superseded — `claimKey` and `wins()` in the store only ever see one
+ * claim there — so the whole log is retained without touching the ordering
+ * rule the replaceable lenses live by. The decode is lens-agnostic (it reads
+ * the `l` tag) because the registry keeps ONE decoder per kind; the registry
+ * then keeps only the claims whose lens was registered as append-only.
+ *
+ * The body comes back with `id` = event id and a `_log` block (author, time,
+ * refs) so a record read straight from the store is self-describing.
+ */
+export function createAppendWire({ lens, appName, kind = HOLOSPHERE_LOG_KIND } = {}) {
+    if (!lens) throw new Error('createAppendWire: lens is required');
+    return {
+        lens: String(lens),
+        kinds: [kind],
+        append: true,
+        filters: (holon) => [{
+            kinds: [kind], '#h': [String(holon)], '#l': [String(lens)],
+            ...(appName ? { '#n': [String(appName)] } : {}),
+        }],
+        decode(event) {
+            if (!event || event.kind !== kind || typeof event.content !== 'string') return null;
+            const h = tag(event, 'h');
+            const l = tag(event, 'l');
+            if (!h || !l) return null;
+            const body = eventToItem(event);
+            if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+            return [{
+                holon: h === GLOBAL_HOLON ? null : h,
+                lens: l,
+                id: event.id,
+                item: {
+                    ...body,
+                    id: event.id,
+                    _log: { pubkey: event.pubkey, created_at: event.created_at, kind, refs: logRefs(event) },
+                },
+            }];
+        },
+    };
+}
 
 /**
  * Decode a kind-30078 event into its address + item, or null when malformed.
  *
  * The `h` and `l` tags carry the address; the id comes from the payload, and
  * falls back to the d-tag remainder (`holon/lens/id`) when the payload has none.
+ *
+ * SEALED content (see sealed.js) is recognised BEFORE the plain path — its
+ * payload has no `id`, so the plain path would otherwise address it by the
+ * d-tag and keep the ciphertext as if it were an item. With an `unseal`
+ * function the item is opened (and must carry the address's own id, or the
+ * event is not a claim); without one, or when no key opens it, the claim
+ * becomes a LOCKED STUB so it still supersedes older plaintext at the address.
  */
-export function decodeEvent(event) {
+export function decodeEvent(event, unseal = null) {
     if (!event || typeof event !== 'object' || typeof event.content !== 'string') return null;
     const h = tag(event, 'h');
     const lens = tag(event, 'l');
     if (!h || !lens) return null;
-    const item = eventToItem(event);
-    if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+    const payload = eventToItem(event);
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+    const holon = h === GLOBAL_HOLON ? null : h;
+    if (isSealed(payload)) {
+        const d = tag(event, 'd') || '';
+        const id = d.split('/').slice(2).join('/');
+        if (!id) return null;
+        let item = null;
+        if (typeof unseal === 'function') {
+            try { item = unseal({ holon, lens, id, sealed: payload, event }); } catch { item = null; }
+        }
+        if (item) {
+            if (typeof item !== 'object' || Array.isArray(item)) return null;
+            if (String(item.id ?? '') !== id) return null;   // a payload sealed for another address
+            return { holon, lens, id, item, sealed: payload };
+        }
+        return { holon, lens, id, item: lockedStub(id, payload), sealed: payload };
+    }
+    const item = payload;
     let id = item.id !== undefined && item.id !== null ? String(item.id) : '';
     if (!id) {
         const d = tag(event, 'd') || '';
         id = d.split('/').slice(2).join('/');
     }
     if (!id) return null;
-    return { holon: h === GLOBAL_HOLON ? null : h, lens, id, item };
+    return { holon, lens, id, item };
 }
 
 /**
@@ -54,10 +122,12 @@ export function decodeEvent(event) {
  * Mutable on purpose: `enableSigning` can register projections long after the
  * store was constructed, so the registry has to accept a wire at any time.
  */
-export function createWireRegistry({ legacyKind = HOLOSPHERE_KIND } = {}) {
+export function createWireRegistry({ legacyKind = HOLOSPHERE_KIND, unseal = null } = {}) {
     const byKind = new Map();        // kind → LensWire
     const byLens = new Map();        // lens → LensWire[]
     const standardLenses = new Set();
+    const appendLenses = new Set();  // lenses carried on the append-only log kind
+    let unsealer = typeof unseal === 'function' ? unseal : null;
 
     /**
      * A NIP-09 retraction, as one soft tombstone per address it names.
@@ -94,6 +164,16 @@ export function createWireRegistry({ legacyKind = HOLOSPHERE_KIND } = {}) {
     return {
         legacyKind,
 
+        /**
+         * Install (or clear) the function that opens sealed envelopes:
+         * `({ holon, lens, id, sealed, event }) => item | null`. Installed by
+         * the privacy layer once it holds keys; the store's `rescan` then
+         * re-decodes what was locked.
+         */
+        setUnseal(fn) {
+            unsealer = typeof fn === 'function' ? fn : null;
+        },
+
         /** Claim `wire.kinds` for `wire.lens`. Re-registering a kind replaces it. */
         register(wire) {
             if (!wire || !wire.lens || typeof wire.decode !== 'function') return;
@@ -105,11 +185,17 @@ export function createWireRegistry({ legacyKind = HOLOSPHERE_KIND } = {}) {
             if (!byLens.has(lens)) byLens.set(lens, []);
             byLens.get(lens).push(wire);
             standardLenses.add(lens);
+            if (wire.append === true) appendLenses.add(lens);
         },
 
         /** The wires registered for a lens, in registration order. */
         wiresFor(lens) {
             return byLens.get(String(lens)) || [];
+        },
+
+        /** Is this lens an append-only log (every event its own record)? */
+        isAppend(lens) {
+            return appendLenses.has(String(lens));
         },
 
         /**
@@ -146,7 +232,12 @@ export function createWireRegistry({ legacyKind = HOLOSPHERE_KIND } = {}) {
         decode(event) {
             if (!event || typeof event !== 'object') return null;
             if (event.kind === legacyKind) {
-                const d = decodeEvent(event);
+                const d = decodeEvent(event, unsealer);
+                // A replaceable envelope has no business at a log address: a
+                // forged tombstone `{ id: <eventId>, _deleted: true }` would
+                // otherwise win last-writer-wins in `records` and shadow the
+                // entry. Not a claim.
+                if (d && appendLenses.has(String(d.lens))) return null;
                 return d ? [d] : null;
             }
             if (event.kind === DELETE_KIND) return byKind.size ? decodeRetraction(event) : null;
@@ -159,7 +250,10 @@ export function createWireRegistry({ legacyKind = HOLOSPHERE_KIND } = {}) {
                 return null;                       // a malformed foreign event, not a crash
             }
             if (!claims) return null;
-            const out = Array.isArray(claims) ? claims : [claims];
+            let out = Array.isArray(claims) ? claims : [claims];
+            // One decoder serves every append lens; a log event naming a lens
+            // nobody registered as append-only is not ours.
+            if (w.append === true) out = out.filter((c) => c && appendLenses.has(String(c.lens)));
             return out.length ? out : null;
         },
     };

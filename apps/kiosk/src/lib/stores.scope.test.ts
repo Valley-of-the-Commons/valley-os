@@ -43,9 +43,9 @@ describe("holon-adjusted stores", () => {
 
   it("choosing a different value still writes it", () => {
     holonId.set(COMMONS_HUB_ID);
-    scope.set("networked");
-    scope.set("personal");
+    calendarMode.set("month");
+    calendarMode.set("day");
     holonId.set("-1001234567890");
-    expect(get(scope)).toBe("personal");
+    expect(get(calendarMode)).toBe("day");
   });
 });

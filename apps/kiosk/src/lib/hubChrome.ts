@@ -22,19 +22,6 @@ export function calendarModesFor<T extends { id: string }>(
     : [...modes];
 }
 
-/**
- * The scope switch's segments: the Federation (`networked`) segment is hidden
- * on the Commons Hub. Only the control is hidden; partner fetch stays in place.
- */
-export function scopeOptionsFor<T extends { id: string }>(
-  holon: string | null | undefined,
-  options: readonly T[],
-): T[] {
-  return isCommonsHub(holon)
-    ? options.filter((o) => o.id !== "networked")
-    : [...options];
-}
-
 /** The calendar window the Commons Hub shows for a remembered one: Month/Year read as Week. */
 export function effectiveCalendarMode<M extends string>(
   holon: string | null | undefined,

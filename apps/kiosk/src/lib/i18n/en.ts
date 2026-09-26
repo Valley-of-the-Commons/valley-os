@@ -69,9 +69,6 @@ export const en = {
   "tasks.addPlaceholder": "Water the plants\nFix the gate\nPlan the potluck",
   "tasks.adding": "Adding…",
   "tasks.add": "Add",
-  "tasks.loginPersonal": "Log in to see the tasks you're part of ✶",
-  "tasks.emptyPersonal":
-    "Nothing with your name on it yet — join a task to see it here ✶",
   "tasks.emptyBacklog": "The backlog is clear. ✶",
 
   // Swipe deck
@@ -89,7 +86,7 @@ export const en = {
   "swipe.allCaughtUp": "All caught up",
   "swipe.roundSummary": "{joins} joined · {likes} liked this round",
   "swipe.startOver": "Start over",
-  "swipe.seeMine": "See my tasks",
+  "swipe.seeList": "See the list",
   "swipe.backToWall": "Back to post-its",
   "swipe.skipAria": "Skip this task",
   "swipe.skipTitle": "Skip",
@@ -119,7 +116,6 @@ export const en = {
   "lists.removeItemAria": "Remove {item}",
   "lists.addItemPlaceholder": "Add an item…",
   "lists.newItemAria": "New item",
-  "lists.loginPersonal": "Log in to see your lists ✶",
   "lists.empty": "No lists yet — start one with ＋",
   "lists.startList": "Start a list",
   "lists.startLead": "A shared checklist anyone here can tick off.",
@@ -136,9 +132,10 @@ export const en = {
   "cal.verbResize": "resize",
   "cal.allDay": "all day",
   "cal.dayOfSpan": "day {span}",
+  "cal.moreEvents": { one: "+{n} more", other: "+{n} more" },
+  "cal.dayEvents": { one: "{n} event", other: "{n} events" },
   "cal.previous": "Previous",
   "cal.next": "Next",
-  "cal.loginEvents": "Log in to see your events ✶",
   "cal.newMoon": "New moon",
   "cal.fullMoon": "Full moon",
   "cal.moonWaxingCrescent": "Waxing crescent",
@@ -202,8 +199,6 @@ export const en = {
   "rolesv.prevWeek": "Previous week",
   "rolesv.nextWeek": "Next week",
   "rolesv.today": "Today",
-  "rolesv.loginPersonal": "Log in to see your roles ✶",
-  "rolesv.emptyPersonal": "No roles with your name on them yet — take a day ✪",
   "rolesv.empty": "No roles yet. ✪",
   "rolesv.fixedRole": "Fixed role",
   "rolesv.fixed": "Fixed",
@@ -230,15 +225,10 @@ export const en = {
 
   // Library status chips
   "library.available": "available",
-  "library.returnBy": "return {when}",
-  "library.withYou": "with you",
   "library.outWith": "out · {who}",
   "library.out": "out",
 
   // Library view
-  "library.loginPersonal": "Log in to see what you've borrowed ✶",
-  "library.emptyPersonal":
-    "Nothing borrowed right now — tap a thing to take it out ✶",
   "library.emptyShared": "No things shared yet.",
   "library.prevItem": "Previous item",
   "library.nextItem": "Next item",
@@ -274,8 +264,6 @@ export const en = {
   "shifts.loading": "Reading the shift schedule…",
   "shifts.empty": "No shifts on the schedule yet.",
   "shifts.noMatch": "No shifts match your search.",
-  "shifts.loginPersonal": "Log in to see the shifts you're on ✶",
-  "shifts.emptyPersonal": "No shifts with your name on them yet — take one ✪",
   "shifts.now": "Now",
   "shifts.full": "Full",
   "shifts.signedUp": { one: "{n} signed up", other: "{n} signed up" },
@@ -391,11 +379,8 @@ export const en = {
   "pills.calendarView": "Calendar view",
 
   // Show (scope) pill
-  "scope.personal": "Personal",
-  "scope.local": "Local",
-  "scope.global": "Federation",
-  "scope.show": "Show",
-  "scope.aria": "Whose items to show",
+  "scope.federated": "Federated",
+  "scope.aria": "Show the federated holons' items too",
 
   // Header bar
   "tabbar.search": "Search…",
@@ -540,14 +525,30 @@ export const en = {
   "menu.notSignedIn": "Not signed in",
   "menu.dashboard": "Open full dashboard",
   "menu.settings": "Settings",
+  "menu.myHolon": "Open my holon",
   "menu.homePage": "Show the home page",
   "menu.logout": "Log out",
   "menu.signingAs": "Signing as {key}",
+  "menu.accepted": "Your key counts on this hub",
+  "menu.held":
+    "Held — this hub hasn't accepted your key yet, so only this screen sees your changes",
+  "layout.heldWrites":
+    "This hub hasn't accepted your key yet — your changes stay on this screen until it does.",
   "menu.loginTelegram": "Log in with Telegram",
   "menu.login": "Sign in",
+  "menu.install": "Add to Home Screen",
+  "install.hint": "Open {name} like an app — one tap, full screen.",
+  "install.iosShare": "Tap the Share button in the browser’s toolbar",
+  "install.iosAdd": "Scroll down and choose “Add to Home Screen”",
+  "install.iosConfirm": "Tap “Add”",
+  "install.manual":
+    "Open your browser’s menu and choose “Install app” or “Add to Home Screen”.",
+  "install.done": "Added to your Home Screen",
 
   // Completion confirmation
   "complete.title": "Complete this task?",
+  "complete.leadHosts":
+    "This event names its hosts, so they get the credit. Untick anyone who did not host.",
   "complete.lead":
     "Confirm who took part — they'll be credited in the holon's accounting.",
   "complete.addMemberAria": "Add a member",
@@ -641,6 +642,23 @@ export const en = {
   "settings.setLocation": "Set location…",
   // The home hex as a federation partner: which lenses reach the map, and
   // how far up the scalespace they travel.
+  "settings.privacy": "Private lenses",
+  "settings.privacySub":
+    "— sealed on the relays; only the keys you hand out can read them",
+  "settings.privacyLogin": "Log in with your key to make a lens private.",
+  "settings.privacyAria": "{lens}: {state}",
+  "settings.privacyPrivate": "private",
+  "settings.privacyPublic": "public",
+  "settings.privacyHint":
+    "A private lens keeps what is inside sealed. Share a whole lens from the dock, or one card from its detail view.",
+  "settings.privacyFailed": "Could not change that lens — try again.",
+  "settings.privacyShared": "shared with {n}",
+  "settings.hubKey": "Hub key {key}",
+  "settings.hubKeyLog": "founded, its member list is signed",
+  "settings.hubKeyOwn": "this hub is its own key",
+  "settings.hubKeyBoot": "from its own signed settings",
+  "settings.hubKeyNone":
+    "No signed hub key yet: keys cannot be shared with this hub, and every write counts until its bot founds it.",
   "settings.onMap": "On the map",
   "settings.onMapSub":
     "— what this holon puts on the shared map, and how far out it can be seen",
@@ -677,6 +695,16 @@ export const en = {
   "fed.unlink": "Unlink {name}",
   "fed.linkError": "Could not link that holon — try again.",
   "fed.changeError": "Change didn't save — try again.",
+  "fed.keyShare": "Share the key for {lens} with {name}",
+  "fed.keyRevoke": "Take the key for {lens} back from {name}",
+  "fed.keyNoPubkey": "{name} has no key to share with.",
+  "fed.keyError": "The key change didn't save — try again.",
+  "fed.privateHint":
+    "A locked lens is private: the arrow opens the flow, the key shares what is inside.",
+  "fed.keyToOwn": "Keys for {name} go to its own key {key}.",
+  "fed.keyToAnchor": "Keys for {name} go to its signed hub key {key}.",
+  "fed.keyNoAnchor":
+    "{name} has no signed hub key yet — its bot has to found it before a key can be shared.",
   "fed.unlinkError": "Unlink didn't save — try again.",
 
   // Location (hex) picker
@@ -769,8 +797,29 @@ export const en = {
   "detail.newCategoryPlaceholder": "New category name",
   "detail.pickFromList": "Pick from list",
   "detail.newCategory": "New category…",
+  "detail.shareWith": "Share with…",
+  "detail.shareTitle": "Share this card's key with",
+  "detail.shareNoPartners": "No federated holons to share with.",
+  "detail.shareNoKey": "no key to share with",
+  "detail.shared": "Shared",
+  "detail.notShared": "Not shared",
+  "detail.sharedLens": "Whole lens shared",
+  "detail.shareDone": "Key shared with {name}.",
+  "detail.unshareDone": "Key taken back from {name}.",
+  "detail.shareFailed": "Could not change the sharing — {reason}",
   "detail.description": "Description",
   "detail.participants": { one: "{n} participant", other: "{n} participants" },
+  "detail.hostedBy": "Hosted by",
+  "detail.hosts": "Hosts",
+  "detail.hostsHint":
+    "Hosts get the credit for the event. With no host, everyone who takes part does.",
+  "detail.addHost": "Add a host…",
+  "detail.removeHost": "Remove {name} as host",
+  "detail.participantsLabel": "Participants",
+  "detail.participantsHint":
+    "Who takes part. Add or remove anyone; a participant stops appreciating.",
+  "detail.addParticipant": "Add a participant…",
+  "detail.removeParticipant": "Remove {name} from participants",
   "detail.leaveTitle": "Leave this task",
   "detail.joinedLeave": "Joined · leave",
   "detail.appreciatedLabel": "Appreciated",
@@ -825,8 +874,6 @@ export const en = {
   // Status leaderboard
   "status.tallying": "Tallying contributions… ♛",
   "status.noActivity": "No ranked activity yet. ♛",
-  "status.loginPersonal": "Log in to see your own standing ✶",
-  "status.emptyPersonal": "Nothing ranked with your name on it yet. ♛",
   "status.seeScore": "See how {name}'s score was reached",
   // The framing the board is never shown without: it measures
   // contributions, not people — and warns against acting on the number.
@@ -926,6 +973,8 @@ export const en = {
   "voice.plan.kind.update": "Change",
   "voice.plan.kind.participants": "Participants",
   "voice.plan.kind.complete": "Complete",
+  "voice.plan.kind.hosts": "Hosts",
+  "voice.plan.field.hosts": "Hosts",
   "voice.plan.field.title": "Title",
   "voice.plan.field.description": "Description",
   "voice.plan.field.category": "Category",
@@ -1105,6 +1154,7 @@ export const en = {
   "flows.unitAbout":
     "One unit for the movement and the people charts. A money currency also sets the balances.",
   "flows.windowWeek": "This week",
+  "flows.windowLunation": "This moon",
   "flows.windowMonth": "This month",
   "flows.windowYear": "This year",
   "flows.windowCustom": "Custom",
@@ -1150,6 +1200,26 @@ export const en = {
   "flows.accountOverBy": "Over by",
   "flows.accountVia": "Through",
   "flows.accountNoPot": "Amounts appear once a collective is connected.",
+  "flows.claimAction": "Claim",
+  "flows.claimOpens": "Submit an expense on OpenCollective",
+  "flows.claimRecord": "Record a claim",
+  "flows.claimAmount": "Amount",
+  "flows.claimMemo": "What for",
+  "flows.claimNoSigner":
+    "Signing is not set up for this login, so a claim cannot be recorded here.",
+  "flows.claimsProvisional":
+    "This holon is not founded yet: who counts is provisional until the bot signs its membership.",
+  "flows.claimsReview": "Claims to review",
+  "flows.claimAttest": "Attest",
+  "flows.claimDispute": "Dispute",
+  "flows.claimPaid": "Paid",
+  "flows.claimStatus.approved": "Approved",
+  "flows.claimStatus.pending": "Awaiting attestation",
+  "flows.claimStatus.disputed": "Disputed",
+  "flows.claimStatus.over": "Over the right",
+  "flows.claimStatus.conflict": "Conflict",
+  "flows.claimStatus.settled": "Paid",
+  "flows.claimStatus.rejected": "Not counted",
   "flows.peopleTitle": "Between people",
   "flows.peopleAbout":
     "Who gave what to whom — each arrow points at the person who received it.",
@@ -1284,7 +1354,7 @@ export const en = {
   "alloc.splitEquationAbout":
     "Divided by contribution score, as the value equation ranks members today.",
   "alloc.splitCustomAbout":
-    "Each member's share of the contributors' pot. Shares are read in proportion to each other, so they need not sum to 100.",
+    "Enter any numbers — 1, 2, 3 or percentages. Each member's share is their number out of the total, so they need not sum to 100.",
   "alloc.splitScored": "equation {pct}%",
   "alloc.splitTotal": "Total",
   "alloc.splitEmpty":
@@ -1307,6 +1377,49 @@ export const en = {
   "alloc.tabZonesSummary": "{n} zones",
   "alloc.tabFund": "Fund",
   "alloc.tabFundEmpty": "not linked",
+  "vote.title": "Vote",
+  "vote.tally": "Yes {yes} · No {no} · Abstain {abstain} · of {total}",
+  "vote.passing": "passing",
+  "vote.notPassing": "not passing",
+  "vote.provisional":
+    "This holon is not founded yet: who counts is provisional until the bot signs its membership.",
+  "vote.yours": "Your vote",
+  "vote.signIn": "Sign in to vote",
+  "vote.noSigner":
+    "Signing is not set up for this login, so a vote cannot be recorded here.",
+  "vote.choice.yes": "Yes",
+  "vote.choice.no": "No",
+  "vote.choice.abstain": "Abstain",
+  "vote.status.counted": "Counted",
+  "vote.status.superseded": "Replaced",
+  "vote.status.pending": "Awaiting attestation",
+  "vote.status.disputed": "Disputed",
+  "vote.status.rejected": "Not counted",
+  "alloc.tabRules": "Rules",
+  "alloc.tabRulesSummary": "quorum {quorum}",
+  "alloc.rulesAbout":
+    "How claims on the fund are judged: who may raise one, who attests, how many attestations count, and what happens when two draw on the same thing. An admin's signed word, kept in the holon's policy log.",
+  "alloc.rulesAuthors": "Who may claim",
+  "alloc.rulesAttesters": "Who attests",
+  "alloc.rulesQuorum": "Attestations needed",
+  "alloc.rulesConflict": "Two on one basis",
+  "alloc.rulesConflictEarliest": "the first wins",
+  "alloc.rulesConflictQuorum": "a human decides",
+  "alloc.rulesRole.admin": "admins",
+  "alloc.rulesRole.member": "members",
+  "alloc.rulesPartners": "Partners whose claims count",
+  "alloc.rulesPartnersAbout":
+    "A partner with a right on this fund claims it in its own log; pin its key and its accepted claims fold in here, judged by these rules.",
+  "alloc.rulesPartnerPinned": "pinned",
+  "alloc.rulesPin": "Pin its key",
+  "alloc.rulesPartnerNoKey": "no key published",
+  "alloc.rulesSave": "Set the rules",
+  "alloc.rulesSaved": "Rules recorded.",
+  "alloc.rulesNotAdmin":
+    "Only an admin's signature sets the rules; yours would be recorded but not counted.",
+  "alloc.rulesNoSigner":
+    "Signing is not set up for this login, so the rules cannot be set here.",
+  "alloc.rulesUnchanged": "These are the rules already in force.",
   "alloc.splitAbout":
     "Contributors are the people who did the work. Reciprocity zones are the groups and people this holon shares with in relationship.",
   // Stock board (the `stock` lens + REA stock events)

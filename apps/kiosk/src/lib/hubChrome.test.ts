@@ -10,7 +10,6 @@ import {
   effectiveCalendarMode,
   effectiveScope,
   isCommonsHub,
-  scopeOptionsFor,
 } from "./hubChrome";
 
 const ALL_MODES = ["day", "week", "month", "year"].map((id) => ({ id }));
@@ -38,21 +37,6 @@ describe("calendar view switch (AC-a1)", () => {
   });
 });
 
-describe("scope switch (AC-a6)", () => {
-  const ALL = ["personal", "all", "networked"].map((id) => ({ id }));
-
-  it("hides the Federation (networked) segment on the Commons Hub", () => {
-    expect(ids(scopeOptionsFor(COMMONS_HUB_ID, ALL))).toEqual([
-      "personal",
-      "all",
-    ]);
-  });
-
-  it("keeps Federation on other holons", () => {
-    expect(scopeOptionsFor(OTHER_HUB, ALL)).toEqual(ALL);
-  });
-});
-
 describe("effective values: the device preference, adjusted for the Commons Hub", () => {
   it("a remembered Month or Year window reads as Week on the Commons Hub only", () => {
     expect(effectiveCalendarMode(COMMONS_HUB_ID, "month")).toBe("week");
@@ -63,7 +47,7 @@ describe("effective values: the device preference, adjusted for the Commons Hub"
 
   it("a remembered Federation scope reads as Local on the Commons Hub only", () => {
     expect(effectiveScope(COMMONS_HUB_ID, "networked")).toBe("all");
-    expect(effectiveScope(COMMONS_HUB_ID, "personal")).toBe("personal");
+    expect(effectiveScope(COMMONS_HUB_ID, "all")).toBe("all");
     expect(effectiveScope(OTHER_HUB, "networked")).toBe("networked");
   });
 });

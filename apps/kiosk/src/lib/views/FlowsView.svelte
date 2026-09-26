@@ -26,12 +26,10 @@
   //     fewest transfers that square it, the records (BalancesView).
   //   GRAPH — the two Sankeys: movement, and the fund allocation rights.
   //
-  // The Show pill (Personal / Local / Global) only FILTERS items, as it does
-  // on every other board: Personal keeps the rows, transfers and records the
-  // viewer is part of, and the movement the viewer took part in. Balances
-  // and rights are computed over the whole tab and the whole fund under
-  // every scope — half a split is nobody's debt, and half a fund is nobody's
-  // right.
+  // Balances and rights are computed over the whole tab and the whole fund —
+  // half a split is nobody's debt, and half a fund is nobody's right. Partner
+  // data, when the Show federated switch is on, is folded in by the
+  // subscription layer, not here.
   //
   // Units never mix. Kudos are not hours and hours are not euros, this repo has
   // no exchange rates, and inventing one would be a lie — so each unit gets its
@@ -49,7 +47,6 @@
     holonId,
     rotationHold,
     flowsViewMode,
-    scope,
     now,
     offerSettings,
   } from "$lib/stores";
@@ -60,7 +57,6 @@
     resolveFlowsWindow,
     setFlowsWindow,
   } from "$lib/config";
-  import { describeWindow } from "$lib/flowswindow";
   import {
     getHolonName,
     getHolosphere,
@@ -125,7 +121,6 @@
   import { loadSettings } from "@holons/core/settings";
   import { buildNameMap } from "@holons/core/identity";
   import {
-    coerceSplitWith,
     expenseCurrencies,
     normalizeCurrency,
     participantIds,
@@ -136,10 +131,26 @@
   import AllocationSettings from "$lib/components/AllocationSettings.svelte";
   import { bindEquation, equation as equationStore } from "$lib/equation";
   import type { AllocationDraft } from "$lib/allocation";
+  import Icon from "$lib/components/Icon.svelte";
   import SankeyChart from "$lib/components/SankeyChart.svelte";
   import ChordChart from "$lib/components/ChordChart.svelte";
   import Modal from "$lib/components/Modal.svelte";
   import BalancesView from "./BalancesView.svelte";
+  import {
+    watchClaimsLogs,
+    claimSigner,
+    recordPolicy,
+    recordClaim,
+    recordVerdict,
+    recordPayout,
+    type ClaimsLogs,
+  } from "$lib/flowsClaims";
+  import {
+    FLOW_CLAIMS_LENS,
+    foldClaimsFromLenses,
+    type Claim,
+  } from "@holons/core/flows";
+  import type { Policy } from "@holons/core/protocol";
 
   // The period, one choice for every chart and statement on the board,
   // picked in the settings drawer and kept per device. 90 days is the
@@ -180,6 +191,139 @@
   // The federation record's partner ids; zones and names are derived below so
   // a settings doc or a resolved name arriving later still lands on the board.
   let federated: string[] = [];
+
+  // ── The signed claims log ───────────────────────────────────────────────
+  // A claim is a signed, append-only entry in the holon's own log; who it
+  // counts for and whether it counts is the fold's call (core), from the
+  // membership log, the settings, the users and the identity directory —
+  // the same fold every other surface runs. The board watches the logs and
+  // re-folds on every entry; `usage` then takes `claimed` from the fold.
+  let claimsLogs: ClaimsLogs | null = null;
+  let claimsOff: (() => void) | null = null;
+  let claimsBoundTo: string | null = null;
+  let logSigner: Awaited<ReturnType<typeof claimSigner>> = null;
+  let claimAmount = "";
+  let claimMemo = "";
+  let claimBusy = false;
+  let claimError = "";
+  $: if (hsRef && hid && hid !== claimsBoundTo) bindClaims(hsRef, hid);
+  $: if (!hid && claimsBoundTo) unbindClaims();
+  function bindClaims(hs: HoloSphere, holon: string) {
+    unbindClaims();
+    claimsBoundTo = holon;
+    claimsOff = watchClaimsLogs(hs, holon, (logs) => {
+      if (claimsBoundTo === holon) claimsLogs = logs;
+    });
+  }
+  function unbindClaims() {
+    claimsOff?.();
+    claimsOff = null;
+    claimsBoundTo = null;
+    claimsLogs = null;
+  }
+  onDestroy(unbindClaims);
+  // Who this session signs as (server-side derived key for Telegram logins,
+  // the adopted key for key logins) — re-resolved when the login changes.
+  $: void refreshLogSigner($currentUser);
+  async function refreshLogSigner(_user: unknown) {
+    logSigner = await claimSigner();
+  }
+  $: claimsCtx =
+    hid && claimsLogs
+      ? foldClaimsFromLenses({
+          holonId: hid,
+          entries: claimsLogs.entries,
+          policyEntries: claimsLogs.policy,
+          membersLog: claimsLogs.members,
+          settings,
+          users: Object.values(usersById),
+          attestations: claimsLogs.attestations,
+          imports: claimsLogs.imports,
+        })
+      : null;
+  $: myClaims =
+    claimsCtx && selfId
+      ? claimsCtx.folded.claims.filter((c) => c.party === selfId)
+      : [];
+  $: myLogRole =
+    claimsCtx && logSigner
+      ? claimsCtx.actors.roleAt(
+          logSigner.pubkey,
+          Math.floor($now.getTime() / 1000),
+        )
+      : null;
+  $: canAttest = !!(
+    claimsCtx &&
+    myLogRole &&
+    claimsCtx.policy.attesters.includes(myLogRole)
+  );
+  $: reviewClaims =
+    claimsCtx && canAttest
+      ? claimsCtx.folded.claims.filter(
+          (c) =>
+            c.party !== selfId &&
+            c.status !== "settled" &&
+            c.status !== "rejected",
+        )
+      : [];
+  $: claimsProvisional = claimsCtx?.folded.source === "bootstrap";
+  $: claimUnit = collective?.currency ?? usage?.unit ?? "";
+  const partyName = (id: string) =>
+    usersById[id]?.first_name ||
+    usersById[id]?.username ||
+    partnerNameMap[id] ||
+    id;
+  async function submitClaim() {
+    if (!hsRef || !hid || !selfId || claimBusy) return;
+    const amount = Number(String(claimAmount).replace(",", "."));
+    if (!(amount > 0) || !claimUnit) return;
+    claimBusy = true;
+    claimError = "";
+    try {
+      await recordClaim(hsRef, hid, {
+        party: selfId,
+        amount,
+        unit: claimUnit,
+        memo: claimMemo.trim() || undefined,
+        percentage: myAccount?.percentage,
+      });
+      claimAmount = "";
+      claimMemo = "";
+    } catch (err) {
+      claimError = err instanceof Error ? err.message : String(err);
+    } finally {
+      claimBusy = false;
+    }
+  }
+  async function judgeClaim(c: Claim, verdict: "attest" | "dispute") {
+    if (!hsRef || !hid || claimBusy) return;
+    claimBusy = true;
+    claimError = "";
+    try {
+      await recordVerdict(hsRef, hid, c.id, verdict);
+    } catch (err) {
+      claimError = err instanceof Error ? err.message : String(err);
+    } finally {
+      claimBusy = false;
+    }
+  }
+  async function markPaid(c: Claim) {
+    if (!hsRef || !hid || claimBusy) return;
+    claimBusy = true;
+    claimError = "";
+    try {
+      await recordPayout(hsRef, hid, {
+        claimId: c.id,
+        party: c.party,
+        amount: c.amount,
+        unit: c.unit,
+      });
+    } catch (err) {
+      claimError = err instanceof Error ? err.message : String(err);
+    } finally {
+      claimBusy = false;
+    }
+  }
 
   /**
    * The unit both the movement Sankey and the people chord are drawn in.
@@ -274,13 +418,18 @@
     allocationDraft?.people ?? savedPeople,
   ).map((p) => ({ ...p, name: nameFor(p.id) ?? p.name }));
 
+  // The group an expense with no split is shared by: the users lens, less
+  // the holon itself, which older bot records could carry as a member.
+  $: memberIds = Object.keys(usersById).filter((id) => id && id !== hid);
+
   $: flowsInput = {
     holonId: hid ?? "",
-    events: scopedEvents,
-    expenses: scopedExpenses,
+    events,
+    expenses,
     collective,
     settings,
     window: flowsWindow,
+    members: memberIds,
     nameOf: nameFor,
     hubLabel: holonNames[hid ?? ""] ?? $t("flows.hub"),
   };
@@ -377,9 +526,11 @@
         holonId: hid ?? "",
         unit: collective.currency,
         parties: usageParties,
+        members: memberIds,
         expenses,
         collective,
         window: flowsWindow,
+        claims: claimsCtx?.folded ?? null,
       })
     : null;
   $: usageTotal = usageTotals(usage);
@@ -417,31 +568,11 @@
   // than printing zeros that look like an empty account.
   $: selfId = $currentUser ? String($currentUser.id) : null;
   $: myAccount = selfId ? fundAccount(allocationResult, usage, selfId) : null;
-  $: windowLabel = describeWindow(windowChoice, $t, $locale, windowHour);
   // A statement shows cents; the diagram rounds to whole units.
   $: formatAccount = collective
     ? moneyFormatter(collective.currency, 2)
     : (v: number) => `${Math.round(v * 10) / 10}%`;
   $: sharePct = (pct: number) => String(Math.round(pct * 10) / 10);
-
-  // ── The Show pill: which items feed the board ───────────────────────────
-  // Personal keeps the expenses the viewer paid or shares and the events they
-  // took part in. Anything else (Local, Global) is everything this holon has;
-  // partner data is folded in by the subscription layer, not here.
-  $: involvesMe = (e: Expense): boolean =>
-    !!selfId &&
-    (String(e?.paidBy) === selfId ||
-      coerceSplitWith(e?.splitWith).map(String).includes(selfId));
-  $: scopedExpenses =
-    $scope === "personal" && selfId ? expenses.filter(involvesMe) : expenses;
-  $: scopedEvents =
-    $scope === "personal" && selfId
-      ? events.filter(
-          (e: any) =>
-            String(e?.provider?.id ?? "") === selfId ||
-            String(e?.receiver?.id ?? "") === selfId,
-        )
-      : events;
 
   // What is left to the rights-holders, as the diagram draws it: the sum of
   // every right less what it has already used, never below zero per right —
@@ -468,6 +599,39 @@
       return;
     }
     allocationOpen = true;
+    void loadPartnerKeys();
+  }
+  // Each partner's published holon key, so the Rules tab can pin it. Read
+  // when the sheet opens: a partner's settings are its own holon's, not a
+  // lens this board otherwise watches.
+  let partnerKeys: Record<string, string | null> = {};
+  async function loadPartnerKeys() {
+    if (!hsRef) return;
+    const ids = partners.filter((p) => p.kind !== "person").map((p) => p.id);
+    const out: Record<string, string | null> = {};
+    await Promise.all(
+      ids.map(async (id) => {
+        try {
+          const doc = (await hsRef!.get(id, "settings", id)) as {
+            holonPubkey?: unknown;
+          } | null;
+          const key = String(doc?.holonPubkey ?? "");
+          out[id] = /^[0-9a-f]{64}$/i.test(key) ? key.toLowerCase() : null;
+        } catch {
+          out[id] = null;
+        }
+      }),
+    );
+    partnerKeys = out;
+  }
+  /** The Rules tab's word: append the policy record, signed as the logged-in person. */
+  async function savePolicy(rule: Partial<Policy>) {
+    if (!hsRef || !hid) return;
+    try {
+      await recordPolicy(hsRef, hid, FLOW_CLAIMS_LENS, rule);
+    } catch (err) {
+      claimError = err instanceof Error ? err.message : String(err);
+    }
   }
   // The allocation settings are reached from the gear in the pills band
   // (offered while this board is mounted), not from a button in the board.
@@ -670,12 +834,8 @@
 
   // ── Derived: between people ─────────────────────────────────────────────
   // The same records with both ends kept: who gave what to whom, one matrix
-  // per unit, drawn as a directed chord. Personal narrows to the flows the
-  // viewer gave or received, not every flow on a record they are named on.
-  $: peopleTracks = buildPeopleFlows({
-    ...flowsInput,
-    involving: $scope === "personal" ? selfId : null,
-  });
+  // per unit, drawn as a directed chord.
+  $: peopleTracks = buildPeopleFlows({ ...flowsInput, involving: null });
   const peopleKey = (track: PeopleFlowTrack) => `${track.id}:${track.unit}`;
   // Driven by the same pill as the movement Sankey, and merged the same way.
   $: activePeople =
@@ -1341,14 +1501,93 @@
                     )}</span
                   >
                 </div>
+                <!-- Claiming is offered only for money that is actually
+                     yours to take: a collective to claim from, and something
+                     left after everything already spent or claimed. Someone
+                     who has overrun their right sees no button at all. -->
+                {#if collective && (myAccount.available ?? 0) > 0}
+                  <a
+                    class="claim"
+                    href={`https://opencollective.com/${collective.slug}/expenses/new`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {$t("flows.claimAction")}
+                    <Icon name="external" />
+                  </a>
+                  <p class="claim-hint">{$t("flows.claimOpens")}</p>
+                {/if}
+                <!-- A claim as a signed record in the holon's own log: what
+                     you take from the fund, judged by its attesters, folded
+                     the same way on every screen. -->
+                {#if selfId}
+                  <form
+                    class="claim-form"
+                    on:submit|preventDefault={submitClaim}
+                  >
+                    <label class="claim-field">
+                      <span class="k">{$t("flows.claimAmount")}</span>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        inputmode="decimal"
+                        bind:value={claimAmount}
+                        required
+                      />
+                    </label>
+                    <label class="claim-field grow">
+                      <span class="k">{$t("flows.claimMemo")}</span>
+                      <input
+                        type="text"
+                        maxlength="140"
+                        bind:value={claimMemo}
+                      />
+                    </label>
+                    <button
+                      class="claim"
+                      type="submit"
+                      disabled={claimBusy || !logSigner || !claimUnit}
+                    >
+                      {$t("flows.claimRecord")}
+                    </button>
+                  </form>
+                  {#if !logSigner}
+                    <p class="claim-hint">{$t("flows.claimNoSigner")}</p>
+                  {/if}
+                  {#if claimError}
+                    <p class="claim-hint error">{claimError}</p>
+                  {/if}
+                  {#if claimsProvisional && myClaims.length}
+                    <p class="claim-hint">{$t("flows.claimsProvisional")}</p>
+                  {/if}
+                  {#if myClaims.length}
+                    <ul class="claims">
+                      {#each myClaims.slice(-6).reverse() as c (c.id)}
+                        <li class={`claim-row ${c.status}`}>
+                          <span class="amt">{c.amount} {c.unit}</span>
+                          <span class="memo">{c.memo ?? ""}</span>
+                          <span class="badge"
+                            >{$t(`flows.claimStatus.${c.status}`)}</span
+                          >
+                        </li>
+                      {/each}
+                    </ul>
+                  {/if}
+                {/if}
                 <dl class="statement">
                   <div>
                     <dt>{$t("flows.accountRight")}</dt>
                     <dd>{formatAccount(myAccount.right)}</dd>
                   </div>
+                  <!-- A statement is cumulative: this is everything drawn on
+                       the right, not just what moved in the period, so the
+                       four lines below actually add up to what is left. -->
                   <div>
-                    <dt>{$t("flows.spent")} · {windowLabel}</dt>
-                    <dd class="debit">−{formatAccount(myAccount.spent)}</dd>
+                    <dt>{$t("flows.spent")}</dt>
+                    <dd class="debit">
+                      −{formatAccount(myAccount.lifetimeSpent)}
+                    </dd>
                   </div>
                   <div>
                     <dt>{$t("flows.claimed")}</dt>
@@ -1397,6 +1636,54 @@
               <p class="account-sub">{$t("flows.accountNone")}</p>
             </div>
           {/if}
+          {#if canAttest && reviewClaims.length}
+            <!-- An attester's desk: every open claim by someone else, with
+                 the three words the log takes from them. -->
+            <div class="account review">
+              <div class="k">{$t("flows.claimsReview")}</div>
+              <ul class="claims">
+                {#each reviewClaims.slice(-8).reverse() as c (c.id)}
+                  <li class={`claim-row ${c.status}`}>
+                    <span class="who">{partyName(c.party)}</span>
+                    <span class="amt">{c.amount} {c.unit}</span>
+                    <span class="memo">{c.memo ?? ""}</span>
+                    <span class="badge"
+                      >{$t(`flows.claimStatus.${c.status}`)}</span
+                    >
+                    <span class="acts">
+                      {#if c.status !== "approved"}
+                        <button
+                          type="button"
+                          class="mini"
+                          disabled={claimBusy}
+                          on:click={() => judgeClaim(c, "attest")}
+                          >{$t("flows.claimAttest")}</button
+                        >
+                      {/if}
+                      {#if c.status !== "disputed"}
+                        <button
+                          type="button"
+                          class="mini"
+                          disabled={claimBusy}
+                          on:click={() => judgeClaim(c, "dispute")}
+                          >{$t("flows.claimDispute")}</button
+                        >
+                      {/if}
+                      {#if c.status === "approved"}
+                        <button
+                          type="button"
+                          class="mini"
+                          disabled={claimBusy}
+                          on:click={() => markPaid(c)}
+                          >{$t("flows.claimPaid")}</button
+                        >
+                      {/if}
+                    </span>
+                  </li>
+                {/each}
+              </ul>
+            </div>
+          {/if}
         </section>
 
         <!-- The shared tab: what you owe and are owed, and a way to settle. -->
@@ -1418,7 +1705,6 @@
         {people}
         {currencies}
         {currency}
-        filterMine={$scope === "personal"}
         onCurrency={(c) => pickUnit(`money:${c}`)}
       />
     {:else}
@@ -1616,6 +1902,11 @@
     units={unitOptions}
     unit={trackId}
     period={windowChoice}
+    policy={claimsCtx?.policy ?? null}
+    policyRole={myLogRole}
+    policySignable={!!logSigner}
+    {partnerKeys}
+    on:policy={(e) => void savePolicy(e.detail)}
     on:unit={(e) => pickUnit(e.detail)}
     on:period={(e) => pickWindow(e.detail)}
     on:draft={(e) => (allocationDraft = e.detail)}
@@ -2063,6 +2354,128 @@
   :global(:root[data-theme="dark"]) .account.over .account-main .v,
   :global(:root[data-theme="dark"]) .statement .debit {
     color: #ff8a7a;
+  }
+
+  /* The one action on the card: take what the balance says is still yours.
+     Outlined rather than filled, so it borrows the card's own teal in both
+     themes without a second foreground token to keep legible. */
+  .claim {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 44px;
+    box-sizing: border-box;
+    margin: 0.1rem 0 0.45rem;
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--teal);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--teal);
+    font-size: 0.95rem;
+    text-decoration: none;
+    touch-action: manipulation;
+  }
+  .claim-hint {
+    margin: 0 0 0.7rem;
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+  .claim-hint.error {
+    color: #ff8a7a;
+  }
+  .claim-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.5rem;
+    margin: 0.2rem 0 0.5rem;
+  }
+  .claim-field {
+    display: grid;
+    gap: 0.15rem;
+    min-width: 6rem;
+  }
+  .claim-field.grow {
+    flex: 1 1 8rem;
+  }
+  .claim-field input {
+    min-height: 44px;
+    box-sizing: border-box;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--line, rgba(128, 128, 128, 0.35));
+    border-radius: 10px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    width: 100%;
+  }
+  .claims {
+    list-style: none;
+    margin: 0 0 0.6rem;
+    padding: 0;
+    display: grid;
+    gap: 0.3rem;
+    font-size: 0.85rem;
+  }
+  .claim-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .claim-row .amt {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+  .claim-row .who {
+    font-weight: 600;
+  }
+  .claim-row .memo {
+    flex: 1 1 6rem;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .claim-row .badge {
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    border: 1px solid var(--line, rgba(128, 128, 128, 0.35));
+    color: var(--muted);
+  }
+  .claim-row.approved .badge,
+  .claim-row.settled .badge {
+    border-color: var(--teal);
+    color: var(--teal);
+  }
+  .claim-row.disputed .badge,
+  .claim-row.over .badge,
+  .claim-row.rejected .badge,
+  .claim-row.conflict .badge {
+    border-color: #ff8a7a;
+    color: #ff8a7a;
+  }
+  .claim-row .acts {
+    display: flex;
+    gap: 0.3rem;
+  }
+  .mini {
+    min-height: 44px;
+    padding: 0.3rem 0.7rem;
+    border: 1px solid var(--teal);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--teal);
+    font: inherit;
+    font-size: 0.8rem;
+    touch-action: manipulation;
+  }
+  .mini:disabled {
+    opacity: 0.5;
+  }
+  .account.review {
+    margin-top: 0.6rem;
   }
 
   .statement {

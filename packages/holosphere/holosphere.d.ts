@@ -3,7 +3,7 @@
 // Type declarations for holosphere 2.x — signed Nostr events on relays,
 // mirrored into a local event-sourced store (see STORE.md).
 
-import type { Store, StoreAdapter, NostrEvent } from './store/index.js';
+import type { Store, StoreAdapter, NostrEvent, WireRegistry } from './store/index.js';
 
 export type { Store, StoreAdapter, NostrEvent, StoreRecord, StoreSnapshot, StoreOp, WatchMeta, Cursor } from './store/index.js';
 
@@ -65,6 +65,11 @@ interface PutOptions {
   awaitPropagation?: boolean;
   /** Store only — never sign or publish (reserved namespaces). */
   local?: boolean;
+  /**
+   * Seal this one write ('private') or send it in the clear ('public')
+   * regardless of the lens's mode. See PRIVACY.md.
+   */
+  privacy?: 'private' | 'public';
 }
 
 interface PutGlobalOptions {
@@ -76,11 +81,15 @@ interface GetOptions {
   validationOptions?: object;
   /** Return `_deleted: true` soft-tombstoned records instead of treating them as not-found. Default false. */
   includeDeleted?: boolean;
+  /** Return the `{ id, _locked: true }` stub of a sealed record this instance cannot open. Default false. */
+  includeLocked?: boolean;
 }
 
 interface GetAllOptions {
   /** Include `_deleted: true` soft-tombstoned records in the response. Default false. */
   includeDeleted?: boolean;
+  /** Include the `{ id, _locked: true }` stubs of sealed records this instance cannot open. Default false. */
+  includeLocked?: boolean;
   /** Return hologram pointers as stored instead of resolving them. Default true (resolve). */
   resolveHolograms?: boolean;
   /**
@@ -96,6 +105,51 @@ interface SubscribeOptions {
   includeDeletes?: boolean;
   /** Surface unsigned/untrusted updates tagged `_unverified` instead of dropping them under enforce. Display-only. Default false. */
   includeUnverified?: boolean;
+}
+
+/** A grant as it travels (NIP-17 DM, subject `holons/grant`). */
+interface GrantPayload {
+  t: 'holons/grant';
+  v: 1;
+  id: string;
+  holon: string;
+  lens: string;
+  kid: string;
+  /** Lens key (hex) — a lens grant. */
+  key?: string;
+  /** Item id + its content key (hex) — an item grant. */
+  item?: string;
+  cek?: string;
+  at: string;
+}
+
+/** What a pubkey has been granted, per lens. */
+interface GrantLedger {
+  [pubkey: string]: { lenses: string[]; items: Record<string, string[]> };
+}
+
+interface Privacy {
+  isPrivateLens(holon: string | null, lens: string): boolean;
+  privatizable(holon: string | null, lens: string): boolean;
+  assertPrivatizable(holon: string | null, lens: string): void;
+  /** Load every key the active identity can have for a lens, then re-decode it. */
+  ensureKeys(holon: string | null, lens: string): Promise<void>;
+  /** 'private' creates the lens key on first use; 'public' stops sealing new writes. */
+  setLensMode(holon: string, lens: string, mode: 'private' | 'public'): Promise<{ lens: string; mode: string; kid: string } | null>;
+  /** The private lenses this identity owns in a holon, with their mode. */
+  ownedLenses(holon: string): Record<string, string>;
+  grantLens(holon: string, lens: string, pubkey: string): Promise<{ sent: boolean; kid: string; grantee: string }>;
+  grantItem(holon: string, lens: string, id: string, pubkey: string): Promise<{ sent: boolean; grantee: string; item: string }>;
+  /** Rotates the lens key and every item's content key, rewrites the lens, re-grants the rest. */
+  revokeLens(holon: string, lens: string, pubkey: string): Promise<{ kid: string; rewritten: number; regranted: string[] }>;
+  revokeItem(holon: string, lens: string, id: string, pubkey: string): Promise<{ rewritten: number; regranted: string[] }>;
+  listGrants(holon: string, lens?: string): Promise<GrantLedger>;
+  /** Accept a grant addressed to this identity (validated, kept, re-decoded). */
+  /** `trusted` skips the sender policy (an out-of-band grant the user chose to accept). */
+  acceptGrant(payload: GrantPayload | string, sender?: string | null, opts?: { trusted?: boolean }): Promise<{ accepted: boolean; reason?: string; holon?: string; lens?: string; item?: string | null; kid?: string }>;
+  parseGrant(raw: unknown): GrantPayload | null;
+  startGrants(): void;
+  stopGrants(): void;
 }
 
 interface ResolveHologramOptions {
@@ -246,11 +300,26 @@ export interface ProjectionHook {
   merge?(current: unknown, reversed: any): unknown | null;
 }
 
+export interface PrivacyOptions {
+  /**
+   * May `sender` hand out (or edit under) keys of `holon`? Default: the holon
+   * itself, the anchor of its signed records, or a current member of its
+   * `_members` log (see authority.js).
+   */
+  acceptGrantFrom?: (holo: HoloSphere, holon: string, lens: string, sender: string) => boolean | Promise<boolean>;
+}
+
 export interface SigningOptions {
   /** Measure what enforce would drop, without changing output. */
   shadow?: boolean;
-  /** Authorized reads: `true` = federation read-list, `'membership'` = the holon's signed `_members` log. */
-  enforce?: boolean | 'membership';
+  /**
+   * Authorized reads: `true` = federation read-list, `'membership'` = the
+   * holon's signed `_members` log, `'authority'` = the `authority` hook
+   * decides per holon (null = nobody defined, that holon reads unenforced).
+   */
+  enforce?: boolean | 'membership' | 'authority';
+  /** For `enforce: 'authority'`: who counts for a holon, as `(pubkey, created_at) => boolean`, or null. */
+  authority?: (holo: HoloSphere, holon: string) => Promise<((pubkey: string, createdAt: number) => boolean) | null> | ((pubkey: string, createdAt: number) => boolean) | null;
   /** Lenses read as per-author aggregates (participation, reactions, …). */
   perActorLenses?: string[];
   verbose?: boolean;
@@ -263,7 +332,35 @@ export interface StoreOptions {
   dir?: string;
   /** Persisted ops before the log is compacted (default 50000). */
   compactAfter?: number;
+  /** Which kinds this store consumes; defaults to the envelope alone. */
+  wire?: WireRegistry;
+  /** Lenses carried on the append-only log kind (1808): every entry kept, never replaced. */
+  appendLenses?: string[];
 }
+
+/** The entries a log event points at, by `e`-tag marker. */
+export interface LogRefs {
+  prev: string[];
+  basis: string[];
+  attests: string[];
+  disputes: string[];
+  other: string[];
+}
+
+/** A verified entry of an append-only lens, as `getLog` / `subscribeLog` yield it. */
+export interface LogEntry<T = Record<string, unknown>> {
+  /** The event id — also the record id. */
+  id: string;
+  pubkey: string;
+  created_at: number;
+  kind: number;
+  refs: LogRefs;
+  /** The decoded body (`id` = event id, plus a `_log` block). */
+  item: T & { id: string; _log: { pubkey: string; created_at: number; kind: number; refs: LogRefs } };
+  event: NostrEvent;
+}
+
+export type LogRefsInput = Partial<Record<'prev' | 'basis' | 'attests' | 'disputes', string | string[]>> | Array<{ id: string; marker?: string } | string>;
 
 interface HoloSphereConfig {
   appName?: string;
@@ -279,6 +376,8 @@ interface HoloSphereConfig {
   store?: StoreOptions;
   /** Read-side signing modes. */
   signing?: SigningOptions;
+  /** Privacy policy hooks (see PRIVACY.md). */
+  privacy?: PrivacyOptions;
   nostr?: {
     /** Alias of top-level `relays`. */
     relays?: string[];
@@ -323,7 +422,7 @@ export interface EnableSigningOptions extends SigningOptions {
 export interface Signer {
   pubkey: string;
   shadow: boolean;
-  enforce: false | 'federation' | 'membership';
+  enforce: false | 'federation' | 'membership' | 'authority';
   getReport(): Record<string, any>;
   resetReport(): void;
   isPerActor(lens: string): boolean;
@@ -374,6 +473,19 @@ declare class HoloSphere {
     exportEvents(filter?: { holon?: string | null; lens?: string; authors?: string[] }): NostrEvent[];
     /** Apply signed events (verified); with `publish` also republish them to the relays. */
     importEvents(events: NostrEvent[], options?: { publish?: boolean }): Promise<{ received: number; applied: number; rejected: number }>;
+
+    // Append-only logs (see log.js)
+    /** Carry `lens` on the append-only log kind from now on (idempotent). */
+    registerAppendLens(lens: string): void;
+    isAppendLens(lens: string): boolean;
+    /** Append a signed entry with the instance key; returns the signed event. */
+    append(holon: string | null, lens: string, item: object, options?: { refs?: LogRefsInput; created_at?: number }): Promise<NostrEvent>;
+    /** Apply + publish a log entry signed elsewhere. */
+    appendSigned(event: NostrEvent): Promise<{ applied: boolean; reason?: string }>;
+    /** Every verified entry of a log lens, oldest first. */
+    getLog<T = Record<string, unknown>>(holon: string | null, lens: string, options?: { since?: number; until?: number; authors?: string[] }): Promise<LogEntry<T>[]>;
+    /** Ordered replay, then each new entry; returns the unsubscribe function. */
+    subscribeLog<T = Record<string, unknown>>(holon: string | null, lens: string, callback: (entry: LogEntry<T>) => void, options?: { replay?: boolean }): () => void;
 
     // Node
     getNode(holon: string, lens: string, key: string): Promise<any | null>;
@@ -462,7 +574,14 @@ declare class HoloSphere {
     enableSigning(opts?: EnableSigningOptions): Promise<Signer>;
     disableSigning(): void;
     login(privateKey: Uint8Array | string, opts?: EnableSigningOptions): Promise<{ pubkey: string; signer: Signer }>;
-    logout(): void;
+    /** Drops the signing identity; sealed records lock again once the returned promise settles. */
+    logout(): Promise<void>;
+
+    // Privacy (see PRIVACY.md)
+    /** Vaults, keyring and grants of the active identity. */
+    readonly privacy: Privacy;
+    /** Is this lens private, as far as this instance can tell right now? */
+    isPrivateLens(holon: string | null, lens: string): boolean;
     readonly currentPubkey: string;
     readonly loggedIn: boolean;
     readonly signingEnabled: boolean;

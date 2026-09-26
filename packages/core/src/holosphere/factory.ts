@@ -10,15 +10,20 @@
  * location (see `resolveRelays` in `./relays.js`). That keeps the core
  * importable from any runtime (browser, Node, edge).
  *
- * Every write is signed by `privateKey` and published to the relays; there
- * is no signing mode to pick.
+ * Every write is signed by `privateKey` and published to the relays. Reads
+ * are enforced: for every holon that has someone defined to speak for it
+ * (its key, its founded `_members` log, or its anchored records — see
+ * `./authority.js`), only accepted authors' claims are shown; the rest waits
+ * in `getPending`. `enforce: false` reads the open graph (tooling, forensics).
  */
 
 import { HoloSphere } from 'holosphere';
 import { attachLedger, type LedgerHost } from '../rea/attach.js';
 import { createWireRegistry } from 'holosphere/store';
 import { createShiftIdentityWire, createShiftWire } from '../shifts/wire.js';
+import { PROTOCOL_LENSES } from '../protocol/events.js';
 import type { ProjectionHook } from '../nostr/types.js';
+import { createReadAuthority } from './authority.js';
 
 /** Where the local store persists (see holosphere/STORE.md). */
 export interface HoloSphereStoreOptions {
@@ -107,6 +112,20 @@ export interface CreateHoloSphereOptions {
    * (imports, forensics).
    */
   ledger?: boolean;
+  /**
+   * Append-only lenses (kind 1808, every signed entry kept — see
+   * `@holons/core/protocol`). Defaults to the protocol's own lenses; pass a
+   * list to add a domain's logs, or `false` for none. Registering costs
+   * nothing until a lens is read or written.
+   */
+  appendLenses?: readonly string[] | false;
+  /**
+   * Authorized reads (default on): each holon's accepted authors decide what
+   * a read returns; unsigned or foreign claims wait in `getPending`. The same
+   * rule decides whose privacy grants are accepted. `false` reads the open
+   * graph, as before — for tooling that must see everything.
+   */
+  enforce?: boolean;
 }
 
 /**
@@ -123,18 +142,33 @@ export function createHoloSphere(options: CreateHoloSphereOptions): HoloSphere;
 export function createHoloSphere(
   options: CreateHoloSphereOptions
 ): HoloSphere | Promise<HoloSphere> {
-  const { appName, privateKey, relays, store, nostr, strict, awaitReady, standardWires, extra, ledger } = options;
+  const { appName, privateKey, relays, store, nostr, strict, awaitReady, standardWires, extra, ledger, appendLenses, enforce } = options;
 
   // A lens that owns a standard kind needs the store to consume that kind.
   // Built here so no UI has to know the registry exists.
-  let storeCfg = store;
+  let storeCfg: (HoloSphereStoreOptions & { appendLenses?: string[] }) | undefined = store;
   if (standardWires?.shifts || standardWires?.shiftIdentity) {
     const wire = createWireRegistry();
     if (standardWires.shifts) wire.register(createShiftWire(standardWires.shifts));
     if (standardWires.shiftIdentity) wire.register(createShiftIdentityWire(standardWires.shiftIdentity));
     storeCfg = { ...(store ?? {}), wire };
   }
+  // The protocol's own logs ride along by default; a domain adds its own.
+  if (appendLenses !== false) {
+    const lenses = [...new Set([...PROTOCOL_LENSES, ...(appendLenses ?? [])])];
+    storeCfg = { ...(storeCfg ?? {}), appendLenses: lenses };
+  }
 
+  // Who counts, per holon, for every read and for every grant: one rule,
+  // one cache, wired into both layers. An explicit `signing` in `extra`
+  // (test modes) keeps its own read mode.
+  const authority = enforce === false ? null : createReadAuthority();
+  const enforced = authority
+    ? {
+        signing: { enforce: 'authority', authority: (holo: HoloSphere, holon: string) => authority.authorityFor(holo, holon) },
+        privacy: { acceptGrantFrom: (holo: HoloSphere, holon: string, lens: string, sender: string) => authority.acceptGrantFrom(holo, holon, lens, sender) },
+      }
+    : {};
   const config: Record<string, unknown> = {
     appName,
     ...(privateKey !== undefined ? { privateKey } : {}),
@@ -142,10 +176,14 @@ export function createHoloSphere(
     ...(storeCfg ? { store: storeCfg } : {}),
     ...(nostr ? { nostr } : {}),
     ...(strict !== undefined ? { strict } : {}),
+    ...enforced,
     ...(extra ?? {}),
   };
 
   const instance = new HoloSphere(config as any);
+  // The rule the reads enforce, reachable for a UI that wants to say where a
+  // key stands (`writeAcceptance`) and for tests.
+  if (authority) (instance as unknown as { _readAuthority?: unknown })._readAuthority = authority;
   if (ledger !== false) attachLedger(instance as unknown as LedgerHost);
   return awaitReady ? instance.ready().then(() => instance) : instance;
 }

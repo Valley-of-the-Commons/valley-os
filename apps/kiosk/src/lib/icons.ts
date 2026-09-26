@@ -66,6 +66,28 @@ export const ICONS = {
   close: { paths: s("M6 6l12 12", "M18 6L6 18") },
   check: { paths: s("M5 12.5l4.5 4.5L19 7") },
   plus: { paths: s("M12 5v14", "M5 12h14") },
+  // "Add to Home Screen": the phone it lands on, and the two glyphs iOS
+  // itself labels the steps with (the Share sheet, then the plus tile).
+  smartphone: {
+    paths: s(
+      "M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z",
+      "M12 18h.01",
+    ),
+  },
+  share: {
+    paths: s(
+      "M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8",
+      "M16 6l-4-4-4 4",
+      "M12 2v13",
+    ),
+  },
+  "plus-square": {
+    paths: s(
+      "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z",
+      "M12 8v8",
+      "M8 12h8",
+    ),
+  },
   info: {
     paths: [
       ...s(CIRCLE, "M12 11v5.5"),
@@ -240,6 +262,7 @@ export const ICONS = {
     paths: [...s(CIRCLE), ...f("M12 7.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z")],
   },
   lock: { paths: s("M5 11h14v10H5z", "M8 11V7a4 4 0 0 1 8 0v4") },
+  unlock: { paths: s("M5 11h14v10H5z", "M8 11V7a4 4 0 0 1 7.6-1.7") },
   key: {
     paths: s(
       "M15.5 3a5.5 5.5 0 1 1-3.9 9.4L5 19v2.5h3.5V19H11v-2.5h2.4A5.5 5.5 0 0 1 15.5 3Z",

@@ -13,10 +13,8 @@
     rawQuests,
     completionRequest,
     showNotice,
-    categoryColors,
     taskViewMode,
     taskSort,
-    scope,
   } from "$lib/stores";
   import { setTaskSort } from "$lib/config";
   import { t, locale } from "$lib/i18n";
@@ -43,11 +41,11 @@
     type BacklogTask,
     holoSeed,
   } from "$lib/data";
-  import { personalTasks, sameId } from "$lib/personal";
+  import { sameId } from "$lib/ids";
   import {
     createTask,
     deleteTaskWithCascade,
-    wouldCreateDependencyCycle,
+    moveDependency,
     type Quest,
   } from "@holons/core/tasks";
   import Modal from "$lib/components/Modal.svelte";
@@ -182,22 +180,18 @@
   // each quest's `orderIndex` on drop.
   let order: string[] = [];
   $: byId = new Map($backlog.map((t) => [t.id, t] as const));
-  // Shared category→colour map (see stores) so a category looks the same here
-  // and in the calendar; blank categories fall back to the hash (`noteColor`).
-  const noteColorFor = (category: string | undefined): string =>
-    (category ? $categoryColors.get(category) : undefined) ??
-    noteColor(category);
+  // A note's fill is the hash of its category (see `noteColor`), so a category
+  // looks the same here and in the calendar, whatever else is on the board.
+  const noteColorFor = noteColor;
   // Depends only on $backlog (syncOrder reads `order`/`drag` but isn't tracked),
   // so reassigning `order` inside can't re-trigger this statement.
   $: syncOrder($backlog);
   $: orderedTasks = order
     .map((id) => byId.get(id))
     .filter((t): t is BacklogTask => t != null);
-  // The personal slice: same order as the wall/list, narrowed to the user.
-  $: mine = personalTasks(orderedTasks, $currentUser?.id);
-  // What every layout renders, after the Show pill's scope. (all/networked
-  // differ upstream in the derived stores; here they're both "everything".)
-  $: shownTasks = $scope === "personal" ? mine : orderedTasks;
+  // What every layout renders. (Whether partners' tasks are in is decided
+  // upstream, in the derived stores; here it is everything that arrived.)
+  $: shownTasks = orderedTasks;
 
   // Until the user drags this session, follow the backlog's order (which
   // `toBacklog` sorts by the persisted `orderIndex`) — so a reload shows the
@@ -277,9 +271,6 @@
 
   function onPointerDown(e: PointerEvent, task: BacklogTask) {
     if (e.button != null && e.button !== 0) return;
-    // No drag-to-reorder under the Mine scope: it's a filtered subset, so a
-    // reorder there would scramble the full wall's persisted orderIndex.
-    if (get(scope) === "personal") return;
     const el = (e.currentTarget as HTMLElement).closest<HTMLElement>(
       "[data-task]",
     );
@@ -534,24 +525,52 @@
     }
   }
 
-  // ── Graph: wire a dependency by dropping one card on another ───────────────
-  // The dragged card comes to WAIT ON the card it lands on. Core owns the rule
-  // that decides whether an edge is legal (a plan must stay a DAG); this only
-  // asks it, and writes the accepted answer.
+  // ── Graph: move a branch by dropping one card on another ──────────────────
+  // The card underneath comes to WAIT ON the dragged card, and the dragged
+  // card stops feeding whatever it fed before — the branch above it moves
+  // along. Core owns that rule (`moveDependency`: what changes, and whether
+  // the plan would loop); this only asks it and writes the accepted answer.
   function questFor(id: string): Quest | undefined {
     return get(rawQuests).find((x) => String(x.id ?? x.title) === id);
   }
   function dependencyIds(q: Quest): string[] {
     return ((q.dependencies as string[] | undefined) ?? []).map(String);
   }
+  /**
+   * A record we may write into this holon's quests. Foreign/hologram copies
+   * are not: their real graph lives in the owner holon, and writing one here
+   * would fork a stray copy (same rule as reorder above).
+   */
+  const own = (q: Quest) => !(q as any)._federation && !(q as any)._hologram;
 
   /** Live during the drag: may `taskId` be made to wait on `depId`? */
   function canLink(taskId: string, depId: string): boolean {
-    if (taskId === depId) return false;
     const q = questFor(taskId);
-    if (!q) return false;
-    if (dependencyIds(q).includes(depId)) return false; // already wired
-    return !wouldCreateDependencyCycle(get(rawQuests), taskId, depId);
+    if (!q || !own(q)) return false;
+    const move = moveDependency(get(rawQuests), depId, taskId);
+    return move.ok && move.edits.length > 0;
+  }
+
+  /**
+   * Write a set of edited quests one by one, skipping foreign records (and
+   * saying so). Resolves true when every own record went through.
+   */
+  async function writeQuestEdits(edits: Quest[]): Promise<boolean> {
+    const hid = get(holonId)!;
+    if (edits.some((q) => !own(q))) {
+      showNotice($t("tasks.linkForeign"));
+      if (edits.every((q) => !own(q))) return false;
+    }
+    const writer = await getWriter(hid, (msg) =>
+      showNotice($t("tasks.linkFailed", { reason: msg })),
+    );
+    let all = true;
+    for (const q of edits.filter(own)) {
+      const clean: Record<string, unknown> = { ...q };
+      delete clean._holon;
+      if (!(await writer.put("quests", clean))) all = false;
+    }
+    return all;
   }
 
   async function linkDependency(task: BacklogTask, dep: BacklogTask) {
@@ -563,26 +582,20 @@
     }
     const q = questFor(task.id);
     if (!q) return;
-    // The edge is stored ON the dependent card, so that card has to be one we
-    // own: writing a foreign/hologram record into this holon's quests would
-    // fork a stray copy (same rule as reorder above), and its real graph lives
-    // in the owner holon anyway.
-    if ((q as any)._federation || (q as any)._hologram) {
+    // The new edge is stored ON the dependent card, so that one has to be
+    // ours — writing only the cuts would leave the dragged card loose.
+    if (!own(q)) {
       showNotice($t("tasks.linkForeign"));
       return;
     }
-    if (wouldCreateDependencyCycle(get(rawQuests), task.id, dep.id)) {
-      showNotice($t("tasks.linkCycle"));
+    const move = moveDependency(get(rawQuests), dep.id, task.id);
+    if (!move.ok) {
+      if (move.reason === "cycle") showNotice($t("tasks.linkCycle"));
       return;
     }
-    const dependencies = [...new Set([...dependencyIds(q), dep.id])];
+    if (!move.edits.length) return; // already exactly so
     try {
-      const writer = await getWriter(hid, (msg) =>
-        showNotice($t("tasks.linkFailed", { reason: msg })),
-      );
-      const clean: Record<string, unknown> = { ...q };
-      delete clean._holon;
-      if (await writer.put("quests", { ...clean, dependencies })) {
+      if (await writeQuestEdits(move.edits)) {
         showNotice($t("tasks.linked", { task: task.title, dep: dep.title }));
       }
     } catch (err) {
@@ -610,7 +623,6 @@
       return;
     }
     const quests = get(rawQuests);
-    const own = (q: Quest) => !(q as any)._federation && !(q as any)._hologram;
     const self = questFor(task.id);
     // Every edge to cut: the card's own dependencies, plus each dependent.
     const edits: Quest[] = [];
@@ -627,21 +639,10 @@
       showNotice($t("tasks.unlinkNothing", { title: task.title }));
       return;
     }
-    if (edits.some((q) => !own(q))) {
-      showNotice($t("tasks.linkForeign"));
-      if (edits.every((q) => !own(q))) return;
-    }
     try {
-      const writer = await getWriter(hid, (msg) =>
-        showNotice($t("tasks.linkFailed", { reason: msg })),
-      );
-      let all = true;
-      for (const q of edits.filter(own)) {
-        const clean: Record<string, unknown> = { ...q };
-        delete clean._holon;
-        if (!(await writer.put("quests", clean))) all = false;
+      if (await writeQuestEdits(edits)) {
+        showNotice($t("tasks.unlinked", { title: task.title }));
       }
-      if (all) showNotice($t("tasks.unlinked", { title: task.title }));
     } catch (err) {
       console.error("[kiosk] unlink failed", err);
       showNotice(
@@ -772,11 +773,7 @@
 <!-- The graph drawer's live size (0 in every other layout), so the floating
      buttons can ride clear of it — same contract as the calendar. -->
 <div class="board" style="--tray-h: {graphTrayH}px; --tray-w: {graphTrayW}px;">
-  {#if $scope === "personal" && !$currentUser}
-    <div class="tasks scroll">
-      <p class="empty">{$t("tasks.loginPersonal")}</p>
-    </div>
-  {:else if $taskViewMode === "swipe"}
+  {#if $taskViewMode === "swipe"}
     <div class="deckwrap">
       <TaskSwipeView
         tasks={shownTasks}
@@ -805,9 +802,7 @@
     />
   {:else}
     <div class="tasks scroll" bind:this={scrollEl}>
-      {#if $scope === "personal" && !shownTasks.length}
-        <p class="empty">{$t("tasks.emptyPersonal")}</p>
-      {:else if $taskViewMode === "list"}
+      {#if $taskViewMode === "list"}
         <TaskListView
           tasks={shownTasks}
           colorFor={noteColorFor}

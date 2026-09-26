@@ -38,6 +38,7 @@
   import { resolveImage } from "$lib/image";
   import {
     coerceSplitWith,
+    expenseSharers,
     computeMutualCredit,
     createExpense,
     createSettlement,
@@ -67,12 +68,6 @@
   export let onCurrency: (c: string) => void = () => {};
   /** The viewer's own tab only (the "My balance" view). */
   export let mine = false;
-  /**
-   * The Show pill's Personal scope: keep everyone's numbers (a balance is
-   * computed over the whole tab, not a slice of it) but list only the rows,
-   * transfers and records the viewer is part of.
-   */
-  export let filterMine = false;
 
   const PAGE = 10;
 
@@ -127,9 +122,7 @@
   $: ranked = [...credit.balances].sort(
     (a, b) => Math.abs(b.net) - Math.abs(a.net),
   );
-  $: active = ranked
-    .filter((b) => Math.abs(b.net) >= 0.005)
-    .filter((b) => !filterMine || isMe(b.userId));
+  $: active = ranked.filter((b) => Math.abs(b.net) >= 0.005);
   // Two ways to square up: the fewest transfers, or paying whom you owe
   // (core's cost-weighted plan along the recorded debts).
   let planMode: "fewest" | "known" = "fewest";
@@ -139,9 +132,7 @@
       .sort()
       .join("|");
   $: plansDiffer = planKey(credit.plan) !== planKey(credit.knownPlan);
-  $: plan = (planMode === "known" ? credit.knownPlan : credit.plan).filter(
-    (p) => !filterMine || isMe(p.from) || isMe(p.to),
-  );
+  $: plan = planMode === "known" ? credit.knownPlan : credit.plan;
   $: square = ranked.filter((b) => Math.abs(b.net) < 0.005);
   $: maxAbs = active.reduce((m, b) => Math.max(m, Math.abs(b.net)), 0) || 1;
   let showSquare = false;
@@ -149,7 +140,7 @@
   // The list under it all: this currency's records, newest first.
   $: inCurrency = expenses
     .filter((e) => e && expenseCurrency(e) === currency)
-    .filter((e) => !(mine || filterMine) || involvesMe(e))
+    .filter((e) => !mine || involvesMe(e))
     .map((e) => ({ e, ts: stamp(e) }))
     .sort((a, b) => b.ts - a.ts);
 
@@ -157,11 +148,17 @@
   $: if (currency) limit = PAGE;
   $: visible = inCurrency.slice(0, limit);
 
+  // "Everyone" is a shortcut: the split is spelled out as every member's id.
+  // An older record with no split at all is for the entire group too, so the
+  // sharers are read through core's rule rather than off the field.
+  $: members = people.map((p) => p.id);
+  $: sharers = (e: Expense): string[] => expenseSharers(e, members).map(String);
+
   /** Paid by the viewer, or shared with them. */
   function involvesMe(e: Expense): boolean {
     if (!selfId) return false;
     if (isMe(e.paidBy)) return true;
-    return coerceSplitWith(e.splitWith).map(String).includes(selfId);
+    return sharers(e).includes(selfId);
   }
 
   /** Older records carried the bot's `date` or a `timestamp`; read all three. */
@@ -185,7 +182,7 @@
   });
 
   function share(e: Expense): number {
-    const n = coerceSplitWith(e.splitWith).length || 1;
+    const n = sharers(e).length || 1;
     return e.amount / n;
   }
 
@@ -195,14 +192,14 @@
       const to = coerceSplitWith(e.splitWith)[0];
       return $t("balances.paidBack", { from: who(e.paidBy), to: who(to) });
     }
-    const n = coerceSplitWith(e.splitWith).length;
+    const n = sharers(e).length;
     return $t("balances.paidSplit", { name: who(e.paidBy), n });
   }
 
   /** The viewer's own take on a record: what it cost them, or earned them. */
   function myLine(e: Expense): { text: string; sign: "in" | "out" | "" } {
     if (!selfId) return { text: "", sign: "" };
-    const split = coerceSplitWith(e.splitWith).map(String);
+    const split = sharers(e);
     const paid = isMe(e.paidBy);
     const inSplit = split.includes(selfId);
     if (isSettlement(e)) {
@@ -335,8 +332,6 @@
     !!draftCurrency &&
     !!draft.paidBy &&
     draft.splitWith.length > 0;
-  // "Everyone" is a shortcut: the split is spelled out as every member's id.
-  $: members = people.map((p) => p.id);
   $: everyoneIn = members.every((id) => draft.splitWith.includes(id));
   $: draftShare = draft.splitWith.length
     ? draftAmount / draft.splitWith.length
@@ -810,7 +805,7 @@
           <dt>
             {isSettlement(e) ? $t("balances.paidTo") : $t("balances.splitWith")}
           </dt>
-          <dd>{coerceSplitWith(e.splitWith).map(who).join(", ")}</dd>
+          <dd>{sharers(e).map(who).join(", ")}</dd>
         </div>
         {#if !isSettlement(e)}
           <div class="drow">

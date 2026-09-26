@@ -67,9 +67,6 @@ export const it: Record<MessageKey, Msg> = {
     "Innaffia le piante\nRipara il cancello\nOrganizza la cena",
   "tasks.adding": "Aggiunta…",
   "tasks.add": "Aggiungi",
-  "tasks.loginPersonal": "Accedi per vedere le attività di cui fai parte ✶",
-  "tasks.emptyPersonal":
-    "Ancora niente a tuo nome — unisciti a un'attività per vederla qui ✶",
   "tasks.emptyBacklog": "Il backlog è vuoto. ✶",
 
   // Swipe deck
@@ -87,7 +84,7 @@ export const it: Record<MessageKey, Msg> = {
   "swipe.allCaughtUp": "Tutto fatto",
   "swipe.roundSummary": "{joins} adesioni · {likes} mi piace in questo giro",
   "swipe.startOver": "Ricomincia",
-  "swipe.seeMine": "Vedi le mie attività",
+  "swipe.seeList": "Vedi la lista",
   "swipe.backToWall": "Torna ai post-it",
   "swipe.skipAria": "Salta questa attività",
   "swipe.skipTitle": "Salta",
@@ -120,7 +117,6 @@ export const it: Record<MessageKey, Msg> = {
   "lists.removeItemAria": "Rimuovi {item}",
   "lists.addItemPlaceholder": "Aggiungi un elemento…",
   "lists.newItemAria": "Nuovo elemento",
-  "lists.loginPersonal": "Accedi per vedere le tue liste ✶",
   "lists.empty": "Nessuna lista — comincia con ＋",
   "lists.startList": "Inizia una lista",
   "lists.startLead": "Una lista condivisa che chiunque qui può spuntare.",
@@ -138,9 +134,10 @@ export const it: Record<MessageKey, Msg> = {
   "cal.verbResize": "ridimensionare",
   "cal.allDay": "tutto il giorno",
   "cal.dayOfSpan": "giorno {span}",
+  "cal.moreEvents": { one: "+{n} altro", other: "+{n} altri" },
+  "cal.dayEvents": { one: "{n} evento", other: "{n} eventi" },
   "cal.previous": "Precedente",
   "cal.next": "Successivo",
-  "cal.loginEvents": "Accedi per vedere i tuoi eventi ✶",
   "cal.newMoon": "Luna nuova",
   "cal.fullMoon": "Luna piena",
   "cal.moonWaxingCrescent": "Luna crescente",
@@ -211,8 +208,6 @@ export const it: Record<MessageKey, Msg> = {
   "rolesv.prevWeek": "Settimana precedente",
   "rolesv.nextWeek": "Settimana successiva",
   "rolesv.today": "Oggi",
-  "rolesv.loginPersonal": "Accedi per vedere i tuoi ruoli ✶",
-  "rolesv.emptyPersonal": "Ancora nessun ruolo a tuo nome — prendi un giorno ✪",
   "rolesv.empty": "Ancora nessun ruolo. ✪",
   "rolesv.fixedRole": "Ruolo fisso",
   "rolesv.fixed": "Fisso",
@@ -239,15 +234,10 @@ export const it: Record<MessageKey, Msg> = {
 
   // Library status chips
   "library.available": "disponibile",
-  "library.returnBy": "riconsegna {when}",
-  "library.withYou": "con te",
   "library.outWith": "in prestito · {who}",
   "library.out": "in prestito",
 
   // Library view
-  "library.loginPersonal": "Accedi per vedere cosa hai in prestito ✶",
-  "library.emptyPersonal":
-    "Niente in prestito al momento — tocca un oggetto per prenderlo ✶",
   "library.emptyShared": "Ancora nessun oggetto condiviso.",
   "library.prevItem": "Oggetto precedente",
   "library.nextItem": "Oggetto successivo",
@@ -283,8 +273,6 @@ export const it: Record<MessageKey, Msg> = {
   "shifts.loading": "Lettura del calendario turni…",
   "shifts.empty": "Ancora nessun turno in calendario.",
   "shifts.noMatch": "Nessun turno corrisponde alla ricerca.",
-  "shifts.loginPersonal": "Accedi per vedere i tuoi turni ✶",
-  "shifts.emptyPersonal": "Ancora nessun turno a tuo nome — prendine uno ✪",
   "shifts.now": "Ora",
   "shifts.full": "Completo",
   "shifts.signedUp": { one: "{n} iscritto", other: "{n} iscritti" },
@@ -400,11 +388,8 @@ export const it: Record<MessageKey, Msg> = {
   "pills.calendarView": "Vista del calendario",
 
   // Show (scope) pill
-  "scope.personal": "Personale",
-  "scope.local": "Locale",
-  "scope.global": "Federazione",
-  "scope.show": "Mostra",
-  "scope.aria": "Quali elementi mostrare",
+  "scope.federated": "Federati",
+  "scope.aria": "Mostra anche gli elementi degli holon federati",
 
   // Header bar
   "tabbar.search": "Cerca…",
@@ -548,14 +533,30 @@ export const it: Record<MessageKey, Msg> = {
   "menu.notSignedIn": "Accesso non effettuato",
   "menu.dashboard": "Apri la dashboard completa",
   "menu.settings": "Impostazioni",
+  "menu.myHolon": "Apri il mio holon",
   "menu.homePage": "Mostra la pagina iniziale",
   "menu.logout": "Esci",
   "menu.signingAs": "Firmi come {key}",
+  "menu.accepted": "La tua chiave conta su questo hub",
+  "menu.held":
+    "In attesa — questo hub non ha ancora accettato la tua chiave, quindi solo questo schermo vede le tue modifiche",
+  "layout.heldWrites":
+    "Questo hub non ha ancora accettato la tua chiave — le tue modifiche restano su questo schermo finché non lo fa.",
   "menu.loginTelegram": "Accedi con Telegram",
   "menu.login": "Accedi",
+  "menu.install": "Aggiungi alla schermata Home",
+  "install.hint": "Apri {name} come un’app — un tocco, a schermo intero.",
+  "install.iosShare": "Tocca il pulsante Condividi nella barra del browser",
+  "install.iosAdd": "Scorri e scegli “Aggiungi alla schermata Home”",
+  "install.iosConfirm": "Tocca “Aggiungi”",
+  "install.manual":
+    "Apri il menu del browser e scegli “Installa app” o “Aggiungi a schermata Home”.",
+  "install.done": "Aggiunta alla schermata Home",
 
   // Completion confirmation
   "complete.title": "Completare questa attività?",
+  "complete.leadHosts":
+    "Questo evento ha degli host: il credito va a loro. Togli la spunta a chi non ha ospitato.",
   "complete.lead":
     "Conferma chi ha partecipato — verrà accreditato nella contabilità dell'holon.",
   "complete.addMemberAria": "Aggiungi un membro",
@@ -650,6 +651,24 @@ export const it: Record<MessageKey, Msg> = {
   "settings.checking": "Verifica…",
   "settings.change": "Cambia…",
   "settings.setLocation": "Imposta la posizione…",
+  "settings.privacy": "Lenti private",
+  "settings.privacySub":
+    "— sigillate sui relay; solo le chiavi che consegni possono leggerle",
+  "settings.privacyLogin":
+    "Accedi con la tua chiave per rendere privata una lente.",
+  "settings.privacyAria": "{lens}: {state}",
+  "settings.privacyPrivate": "privata",
+  "settings.privacyPublic": "pubblica",
+  "settings.privacyHint":
+    "Una lente privata tiene sigillato ciò che contiene. Condividi un'intera lente dal dock, o una singola scheda dal suo dettaglio.",
+  "settings.privacyFailed": "Impossibile cambiare quella lente — riprova.",
+  "settings.privacyShared": "condivisa con {n}",
+  "settings.hubKey": "Chiave dell'hub {key}",
+  "settings.hubKeyLog": "fondato, la lista dei membri è firmata",
+  "settings.hubKeyOwn": "questo hub è la sua stessa chiave",
+  "settings.hubKeyBoot": "dalle sue impostazioni firmate",
+  "settings.hubKeyNone":
+    "Nessuna chiave firmata: non si possono condividere chiavi con questo hub, e ogni scrittura conta finché il suo bot non lo fonda.",
   "settings.onMap": "Sulla mappa",
   "settings.onMapSub":
     "— ciò che questo holon mette sulla mappa condivisa, e da quanto lontano si vede",
@@ -692,6 +711,17 @@ export const it: Record<MessageKey, Msg> = {
   "fed.unlink": "Scollega {name}",
   "fed.linkError": "Impossibile collegare quell'holon — riprova.",
   "fed.changeError": "La modifica non è stata salvata — riprova.",
+  "fed.keyShare": "Condividi la chiave di {lens} con {name}",
+  "fed.keyRevoke": "Ritira la chiave di {lens} da {name}",
+  "fed.keyNoPubkey": "{name} non ha una chiave con cui condividere.",
+  "fed.keyError": "La modifica della chiave non è stata salvata — riprova.",
+  "fed.privateHint":
+    "Una lente con il lucchetto è privata: la freccia apre il flusso, la chiave condivide il contenuto.",
+  "fed.keyToOwn": "Le chiavi per {name} vanno alla sua chiave {key}.",
+  "fed.keyToAnchor":
+    "Le chiavi per {name} vanno alla sua chiave firmata {key}.",
+  "fed.keyNoAnchor":
+    "{name} non ha ancora una chiave firmata — il suo bot deve fondarlo prima di poter condividere una chiave.",
   "fed.unlinkError": "Lo scollegamento non è stato salvato — riprova.",
 
   // Location (hex) picker
@@ -787,11 +817,32 @@ export const it: Record<MessageKey, Msg> = {
   "detail.newCategoryPlaceholder": "Nome della nuova categoria",
   "detail.pickFromList": "Scegli dall'elenco",
   "detail.newCategory": "Nuova categoria…",
+  "detail.shareWith": "Condividi con…",
+  "detail.shareTitle": "Condividi la chiave di questa scheda con",
+  "detail.shareNoPartners": "Nessun holon federato con cui condividere.",
+  "detail.shareNoKey": "nessuna chiave con cui condividere",
+  "detail.shared": "Condivisa",
+  "detail.notShared": "Non condivisa",
+  "detail.sharedLens": "Intera lente condivisa",
+  "detail.shareDone": "Chiave condivisa con {name}.",
+  "detail.unshareDone": "Chiave ritirata da {name}.",
+  "detail.shareFailed": "Impossibile cambiare la condivisione — {reason}",
   "detail.description": "Descrizione",
   "detail.participants": {
     one: "{n} partecipante",
     other: "{n} partecipanti",
   },
+  "detail.hostedBy": "Ospitato da",
+  "detail.hosts": "Host",
+  "detail.hostsHint":
+    "Gli host ricevono il credito per l'evento. Senza host, lo riceve chi partecipa.",
+  "detail.addHost": "Aggiungi un host…",
+  "detail.removeHost": "Rimuovi {name} dagli host",
+  "detail.participantsLabel": "Partecipanti",
+  "detail.participantsHint":
+    "Chi partecipa. Aggiungi o rimuovi chiunque; chi partecipa smette di apprezzare.",
+  "detail.addParticipant": "Aggiungi un partecipante…",
+  "detail.removeParticipant": "Rimuovi {name} dai partecipanti",
   "detail.leaveTitle": "Lascia questa attività",
   "detail.joinedLeave": "Iscritto · lascia",
   "detail.appreciatedLabel": "Apprezzata",
@@ -846,8 +897,6 @@ export const it: Record<MessageKey, Msg> = {
   // Status leaderboard
   "status.tallying": "Conteggio dei contributi… ♛",
   "status.noActivity": "Ancora nessuna attività in classifica. ♛",
-  "status.loginPersonal": "Accedi per vedere la tua posizione ✶",
-  "status.emptyPersonal": "Ancora niente in classifica a tuo nome. ♛",
   "status.seeScore": "Guarda come si è formato il punteggio di {name}",
   "status.disclaimerLead":
     "La tecnologia ricorda. Il significato lo danno le persone.",
@@ -947,6 +996,8 @@ export const it: Record<MessageKey, Msg> = {
   "voice.plan.kind.update": "Modifica",
   "voice.plan.kind.participants": "Partecipanti",
   "voice.plan.kind.complete": "Completa",
+  "voice.plan.kind.hosts": "Host",
+  "voice.plan.field.hosts": "Host",
   "voice.plan.field.title": "Titolo",
   "voice.plan.field.description": "Descrizione",
   "voice.plan.field.category": "Categoria",
@@ -1130,6 +1181,7 @@ export const it: Record<MessageKey, Msg> = {
   "flows.unitAbout":
     "Un'unica unità per il movimento e le persone. Una valuta fissa anche i saldi.",
   "flows.windowWeek": "Questa settimana",
+  "flows.windowLunation": "Questa luna",
   "flows.windowMonth": "Questo mese",
   "flows.windowYear": "Quest'anno",
   "flows.windowCustom": "Personalizzato",
@@ -1176,6 +1228,26 @@ export const it: Record<MessageKey, Msg> = {
   "flows.accountVia": "Tramite",
   "flows.accountNoPot":
     "Gli importi compaiono quando un collettivo è collegato.",
+  "flows.claimAction": "Richiedi",
+  "flows.claimOpens": "Invia una nota spese su OpenCollective",
+  "flows.claimRecord": "Registra una richiesta",
+  "flows.claimAmount": "Importo",
+  "flows.claimMemo": "Per cosa",
+  "flows.claimNoSigner":
+    "La firma non è configurata per questo accesso: qui non si può registrare una richiesta.",
+  "flows.claimsProvisional":
+    "Questo holon non è ancora fondato: chi conta è provvisorio finché il bot non firma i membri.",
+  "flows.claimsReview": "Richieste da esaminare",
+  "flows.claimAttest": "Attesta",
+  "flows.claimDispute": "Contesta",
+  "flows.claimPaid": "Pagata",
+  "flows.claimStatus.approved": "Approvata",
+  "flows.claimStatus.pending": "In attesa di attestazione",
+  "flows.claimStatus.disputed": "Contestata",
+  "flows.claimStatus.over": "Oltre il diritto",
+  "flows.claimStatus.conflict": "Conflitto",
+  "flows.claimStatus.settled": "Pagata",
+  "flows.claimStatus.rejected": "Non conteggiata",
   "flows.peopleTitle": "Tra persone",
   "flows.peopleAbout":
     "Chi ha dato cosa a chi — ogni freccia punta a chi l'ha ricevuto.",
@@ -1313,7 +1385,7 @@ export const it: Record<MessageKey, Msg> = {
   "alloc.splitEquationAbout":
     "Divisa per punteggio di contributo, come l'equazione del valore ordina oggi i membri.",
   "alloc.splitCustomAbout":
-    "La quota di ogni membro sulla parte dei contributori. Le quote contano in proporzione tra loro, non devono sommare a 100.",
+    "Inserisci numeri qualsiasi — 1, 2, 3 o percentuali. La quota di ciascuno è il suo numero sul totale, quindi non devono sommare a 100.",
   "alloc.splitScored": "equazione {pct}%",
   "alloc.splitTotal": "Totale",
   "alloc.splitEmpty":
@@ -1336,6 +1408,49 @@ export const it: Record<MessageKey, Msg> = {
   "alloc.tabZonesSummary": "{n} zone",
   "alloc.tabFund": "Fondo",
   "alloc.tabFundEmpty": "non collegato",
+  "vote.title": "Voto",
+  "vote.tally": "Sì {yes} · No {no} · Astenuti {abstain} · su {total}",
+  "vote.passing": "approvata",
+  "vote.notPassing": "non approvata",
+  "vote.provisional":
+    "Questo holon non è ancora fondato: chi conta è provvisorio finché il bot non firma i membri.",
+  "vote.yours": "Il tuo voto",
+  "vote.signIn": "Accedi per votare",
+  "vote.noSigner":
+    "La firma non è configurata per questo accesso, quindi qui non si può registrare un voto.",
+  "vote.choice.yes": "Sì",
+  "vote.choice.no": "No",
+  "vote.choice.abstain": "Astenuto",
+  "vote.status.counted": "Contato",
+  "vote.status.superseded": "Sostituito",
+  "vote.status.pending": "In attesa di attestazione",
+  "vote.status.disputed": "Contestato",
+  "vote.status.rejected": "Non contato",
+  "alloc.tabRules": "Regole",
+  "alloc.tabRulesSummary": "quorum {quorum}",
+  "alloc.rulesAbout":
+    "Come si giudicano le richieste sul fondo: chi può farne una, chi attesta, quante attestazioni contano e cosa succede se due attingono alla stessa cosa. La parola firmata di un admin, conservata nel registro delle regole dell'holon.",
+  "alloc.rulesAuthors": "Chi può richiedere",
+  "alloc.rulesAttesters": "Chi attesta",
+  "alloc.rulesQuorum": "Attestazioni necessarie",
+  "alloc.rulesConflict": "Due sulla stessa base",
+  "alloc.rulesConflictEarliest": "vince la prima",
+  "alloc.rulesConflictQuorum": "decide una persona",
+  "alloc.rulesRole.admin": "admin",
+  "alloc.rulesRole.member": "membri",
+  "alloc.rulesPartners": "Partner le cui richieste contano",
+  "alloc.rulesPartnersAbout":
+    "Un partner con un diritto su questo fondo lo richiede nel proprio registro; fissa la sua chiave e le sue richieste accettate entrano qui, giudicate da queste regole.",
+  "alloc.rulesPartnerPinned": "fissata",
+  "alloc.rulesPin": "Fissa la chiave",
+  "alloc.rulesPartnerNoKey": "nessuna chiave pubblicata",
+  "alloc.rulesSave": "Imposta le regole",
+  "alloc.rulesSaved": "Regole registrate.",
+  "alloc.rulesNotAdmin":
+    "Solo la firma di un admin imposta le regole; la tua verrebbe registrata ma non contata.",
+  "alloc.rulesNoSigner":
+    "La firma non è configurata per questo accesso, quindi qui non si possono impostare le regole.",
+  "alloc.rulesUnchanged": "Queste sono già le regole in vigore.",
   "alloc.splitAbout":
     "I contributori sono le persone che hanno fatto il lavoro. Le zone di reciprocità sono i gruppi e le persone con cui questo holon condivide in relazione.",
   // Stock board (the `stock` lens + REA stock events)

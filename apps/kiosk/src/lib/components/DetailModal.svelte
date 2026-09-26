@@ -27,7 +27,19 @@
   import { isLoggedIn, currentUser, loginOpen, borrowActor } from "$lib/auth";
   import { getWriter, getLibraryDb, getHolosphere } from "$lib/holosphere";
   import { HIDDEN_LENS, buildHiddenEntry } from "@holons/core/hidden";
-  import { toggleJoin, toggleAppreciate } from "$lib/membership";
+  import { getFederationSnapshot } from "@holons/core/federation";
+  import {
+    getPrivacySnapshot,
+    grantItem,
+    resolveGranteePubkey,
+    revokeItem,
+  } from "@holons/core/privacy";
+  import {
+    reflectMembership,
+    toggleJoin,
+    toggleAppreciate,
+    type TgUser,
+  } from "$lib/membership";
   import {
     checkComplete,
     checkOccurrenceComplete,
@@ -65,13 +77,16 @@
     QUEST_FREQUENCIES,
     applyBreakdownProposal,
     buildScheduleFields,
+    hostsOf,
     isAgendaQuest,
     isOccurrenceCompleted,
     isRecurring,
     questFrequency,
     questKind,
     questSchedule,
+    rosterDiff,
     scheduleToFields,
+    setParticipants,
     setQuestFrequency,
     setQuestKind,
     shiftSchedule,
@@ -80,8 +95,11 @@
     type BreakdownStep,
     type Quest,
     type QuestFrequency,
+    type QuestParticipant,
     type SwitchableKind,
   } from "@holons/core/tasks";
+  import PeoplePicker from "./PeoplePicker.svelte";
+  import ProposalVote from "./ProposalVote.svelte";
   import { breakdownAvailable, requestBreakdownProposal } from "$lib/breakdown";
   import { t, locale, type MessageKey } from "$lib/i18n";
 
@@ -203,6 +221,9 @@
 
   // Participants as display people (id + friendly name) for the chips below.
   $: people = toPeople(quest?.participants);
+  // The hosts an event names — they get the credit; empty when nobody is
+  // named, and for anything that is not an event.
+  $: hostPeople = toPeople(hostsOf(quest));
 
   // Whether the logged-in user has already appreciated this quest.
   $: appreciationCount = Array.isArray(quest?.appreciation)
@@ -453,6 +474,12 @@
   let fFrequency: QuestFrequency | null = null;
   // Task or event — the switch that moves a card between the two boards.
   let fKind: SwitchableKind = "task";
+  // The hosts of an event. Kept while the switch reads "task" so flipping it
+  // back to "event" doesn't lose them; only saved on an event.
+  let fHosts: QuestParticipant[] = [];
+  // Who takes part. Anyone can be put on (or taken off) the roster from the
+  // form — the same list a self-service Join/Leave edits one person at a time.
+  let fParticipants: QuestParticipant[] = [];
   // Both of these hang off the start date, and — like the schedule rules
   // further down — they shape what is shown and saved rather than the fields
   // themselves, so a date that reads empty for a keystroke doesn't throw the
@@ -618,6 +645,109 @@
     });
   }
 
+  // ── Share one card of a private lens ────────────────────────────────
+  // An own card on a private lens can be handed to a federated holon on its
+  // own: only this card's key travels, the rest of the lens stays sealed.
+  // Foreign cards (holograms, federated copies) are shared by their owner.
+  type SharePartner = {
+    id: string;
+    name: string;
+    pubkey: string | null;
+    shared: boolean;
+    lens: boolean;
+  };
+  let shareable = false;
+  let shareOpen = false;
+  let shareBusy = "";
+  let sharePartners: SharePartner[] = [];
+  $: shareLens = sel ? (sel.kind === "thing" ? "library" : "quests") : "";
+  $: shareId = sel
+    ? String(sel.kind === "thing" ? sel.item.id : (sel.quest.id ?? ""))
+    : "";
+  $: void checkShareable(sel, $holonId, $isLoggedIn);
+
+  async function checkShareable(
+    s: typeof sel,
+    holon: string | null,
+    loggedIn: boolean,
+  ) {
+    shareable = false;
+    shareOpen = false;
+    if (!s || !holon || !loggedIn) return;
+    const rec = s.kind === "thing" ? s.item : s.quest;
+    const id = String(rec.id ?? "");
+    if (!id || sourceRef(rec, id)) return;
+    const lens = s.kind === "thing" ? "library" : "quests";
+    try {
+      const hs = await getHolosphere();
+      if (!hs.isPrivateLens(holon, lens)) return;
+      const snap = await getPrivacySnapshot(hs, holon);
+      if (s === sel) shareable = snap.owned.includes(lens);
+    } catch {
+      shareable = false;
+    }
+  }
+
+  async function loadSharePartners() {
+    if (!$holonId) return;
+    const hs = await getHolosphere();
+    const [fed, priv] = await Promise.all([
+      getFederationSnapshot(hs, $holonId),
+      getPrivacySnapshot(hs, $holonId),
+    ]);
+    const out: SharePartner[] = [];
+    for (const id of fed.federated) {
+      let pubkey: string | null = null;
+      try {
+        pubkey = (await resolveGranteePubkey(hs, id)).pubkey;
+      } catch {
+        pubkey = null;
+      }
+      const g = pubkey ? priv.grants[pubkey] : undefined;
+      out.push({
+        id,
+        name: $partnerNames[id] ?? fed.partnerNames[id] ?? id,
+        pubkey,
+        lens: !!g?.lenses.includes(shareLens),
+        shared: !!g?.items[shareLens]?.includes(shareId),
+      });
+    }
+    sharePartners = out;
+  }
+
+  async function openShare() {
+    message = "";
+    shareOpen = !shareOpen;
+    if (!shareOpen) return;
+    try {
+      await loadSharePartners();
+    } catch (err) {
+      console.error("[kiosk] share partners failed", err);
+      sharePartners = [];
+    }
+  }
+
+  async function toggleShare(p: SharePartner) {
+    if (!$holonId || !p.pubkey || shareBusy) return;
+    shareBusy = p.id;
+    try {
+      const hs = await getHolosphere();
+      if (p.shared)
+        await revokeItem(hs, $holonId, shareLens, shareId, p.pubkey);
+      else await grantItem(hs, $holonId, shareLens, shareId, p.pubkey);
+      message = $t(p.shared ? "detail.unshareDone" : "detail.shareDone", {
+        name: p.name,
+      });
+      await loadSharePartners();
+    } catch (err) {
+      message = $t("detail.shareFailed", {
+        reason: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      shareBusy = "";
+    }
+  }
+
   function startEdit() {
     if (!sel) return;
     message = "";
@@ -648,6 +778,9 @@
       // the two the switch offers. A marketplace card never reaches the
       // switch, so the fallback is harmless.
       fKind = questKind(q) === "event" ? "event" : "task";
+      // Read as an event either way, so hosts survive a trip through "task".
+      fHosts = hostsOf({ ...q, type: "event" });
+      fParticipants = Array.isArray(q.participants) ? [...q.participants] : [];
     }
     editing = true;
   }
@@ -689,26 +822,48 @@
     const timing: Partial<Quest> = buildScheduleFields(
       coherentSchedule(fDate, fTime, fEndDate, fEndTime),
     );
-    const updated = {
-      ...sel.quest,
-      title: fTitle.trim() || sel.quest.title,
-      location: fLocation.trim() || undefined,
-      category: fCategory.trim() || undefined,
-      description: fDescription.trim() || undefined,
-      ...timing,
-      // The cadence (core also drops the bot scheduler's handle when it is
-      // cleared, so the bot stops spawning occurrences). Only a dated card
-      // can repeat, so an undated one is saved without a cadence.
-      ...setQuestFrequency(sel.quest, timing.when ? fFrequency : null),
-      // Task ↔ event. Core refuses to retype a marketplace item, so an offer
-      // that somehow reached this form keeps its own lifecycle.
-      ...setQuestKind(sel.quest, timing.when ? fKind : "task"),
-    };
+    // The roster is saved through core, which keeps the participate-XOR-
+    // appreciate rule (a member put on the list stops appreciating).
+    const updated = setParticipants(
+      {
+        ...sel.quest,
+        title: fTitle.trim() || sel.quest.title,
+        location: fLocation.trim() || undefined,
+        category: fCategory.trim() || undefined,
+        description: fDescription.trim() || undefined,
+        ...timing,
+        // The cadence (core also drops the bot scheduler's handle when it is
+        // cleared, so the bot stops spawning occurrences). Only a dated card
+        // can repeat, so an undated one is saved without a cadence.
+        ...setQuestFrequency(sel.quest, timing.when ? fFrequency : null),
+        // Task ↔ event. Core refuses to retype a marketplace item, so an offer
+        // that somehow reached this form keeps its own lifecycle.
+        ...setQuestKind(sel.quest, timing.when ? fKind : "task"),
+        ...(timing.when && fKind === "event" ? { hosts: fHosts } : {}),
+      },
+      fParticipants,
+    );
     const writer = await getWriter($holonId, (m) => (message = m));
     const ok = await writer.put("quests", updated);
     saving = false;
-    if (ok) closeDetail();
-    else if (!message) message = $t("detail.saveFailed");
+    if (!ok) {
+      if (!message) message = $t("detail.saveFailed");
+      return;
+    }
+    closeDetail();
+    // Everyone added or dropped gets the same mirror a self-service join
+    // makes: a hologram in their own holon and a refreshed Telegram DM.
+    // Best-effort, after the save has landed.
+    const { joined, left } = rosterDiff(
+      sel.quest.participants,
+      updated.participants,
+    );
+    const hid = $holonId;
+    // rosterDiff only yields people with an id; the cast narrows the type.
+    for (const p of joined)
+      void reflectMembership(hid, updated, p as TgUser, true);
+    for (const p of left)
+      void reflectMembership(hid, updated, p as TgUser, false);
   }
 
   /**
@@ -1276,6 +1431,11 @@
               <button class="ghost" on:click={startEdit} disabled={saving}
                 >{$t("detail.edit")}</button
               >
+              {#if shareable}
+                <button class="ghost" on:click={openShare} disabled={saving}
+                  ><Icon name="key" /> {$t("detail.shareWith")}</button
+                >
+              {/if}
             </div>
           {/if}
         {:else}
@@ -1378,6 +1538,30 @@
         {#if quest.description}<p class="desc">
             {@html linkify(quest.description)}
           </p>{/if}
+        {#if hostPeople.length}
+          <div class="facts-line">
+            <span class="people-label"
+              ><Icon name="crown" /> {$t("detail.hostedBy")}</span
+            >
+          </div>
+          <ul class="people">
+            {#each hostPeople as p (p.id)}
+              <li class="person">
+                <span class="pav">
+                  <span class="pini">{avatarInitial(p.name)}</span>
+                  <img
+                    src={avatarUrl(p.id)}
+                    alt=""
+                    loading="lazy"
+                    on:error={hideImg}
+                    on:load={showImg}
+                  />
+                </span>
+                <span class="pname">{p.name}</span>
+              </li>
+            {/each}
+          </ul>
+        {/if}
         {#if people.length || appreciationCount}
           <div class="facts-line">
             {#if people.length}
@@ -1408,6 +1592,12 @@
               </li>
             {/each}
           </ul>
+        {/if}
+
+        {#if quest && quest.type === "proposal" && $holonId}
+          <!-- A proposal is decided by signed ballots on the votes log, not
+               by who joined it: the fold is core's, this only renders it. -->
+          <ProposalVote holonId={$holonId} proposalId={String(quest.id)} />
         {/if}
 
         {#if $isLoggedIn}
@@ -1475,6 +1665,11 @@
                     name="sparkles"
                   />
                   {$t("detail.breakDown")}{/if}</button
+              >
+            {/if}
+            {#if shareable}
+              <button class="ghost" on:click={openShare} disabled={saving}
+                ><Icon name="key" /> {$t("detail.shareWith")}</button
               >
             {/if}
             <button
@@ -1685,6 +1880,34 @@
           </div>
         {/if}
 
+        <!-- Who leads the event: named hosts get the credit instead of the
+             participants (core's creditedMembers). Events only. -->
+        {#if effectiveKind === "event"}
+          <div class="hosts-edit">
+            <span class="elab"><Icon name="crown" /> {$t("detail.hosts")}</span>
+            <PeoplePicker
+              bind:people={fHosts}
+              addLabel={$t("detail.addHost")}
+              removeLabel={(name) => $t("detail.removeHost", { name })}
+            />
+            <p class="kind-hint">{$t("detail.hostsHint")}</p>
+          </div>
+        {/if}
+
+        <!-- Who takes part: add or drop anyone on the roster, not just
+             yourself. Core keeps a member out of both lists at once. -->
+        <div class="hosts-edit">
+          <span class="elab"
+            ><Icon name="users" /> {$t("detail.participantsLabel")}</span
+          >
+          <PeoplePicker
+            bind:people={fParticipants}
+            addLabel={$t("detail.addParticipant")}
+            removeLabel={(name) => $t("detail.removeParticipant", { name })}
+          />
+          <p class="kind-hint">{$t("detail.participantsHint")}</p>
+        </div>
+
         <!-- Repeats: one tap picks the cadence, the same choices as the web
              dashboard's task modal. Greyed until the card has a start date. -->
         <div class="freq" role="radiogroup" aria-label={$t("detail.repeats")}>
@@ -1767,6 +1990,37 @@
           >
         </div>
       {/if}
+    {/if}
+
+    {#if shareOpen && shareable}
+      <div class="share">
+        <p class="share-head">{$t("detail.shareTitle")}</p>
+        {#if sharePartners.length === 0}
+          <p class="note-line">{$t("detail.shareNoPartners")}</p>
+        {:else}
+          {#each sharePartners as p (p.id)}
+            <div class="share-row">
+              <span class="share-name">{p.name}</span>
+              {#if p.lens}
+                <span class="share-state">{$t("detail.sharedLens")}</span>
+              {:else if !p.pubkey}
+                <span class="share-state">{$t("detail.shareNoKey")}</span>
+              {:else}
+                <button
+                  type="button"
+                  class="share-key"
+                  class:on={p.shared}
+                  aria-pressed={p.shared}
+                  disabled={!!shareBusy}
+                  on:click={() => toggleShare(p)}
+                  ><Icon name="key" />
+                  {$t(p.shared ? "detail.shared" : "detail.notShared")}</button
+                >
+              {/if}
+            </div>
+          {/each}
+        {/if}
+      </div>
     {/if}
 
     {#if message}<p class="msg">{message}</p>{/if}
@@ -2181,6 +2435,12 @@
   .kind {
     margin-top: 0.9rem;
   }
+  .hosts-edit {
+    margin-top: 0.9rem;
+  }
+  .hosts-edit .elab {
+    margin-bottom: 0.4rem;
+  }
   .kind-hint {
     margin: 0.35rem 0 0;
     font-size: 0.8rem;
@@ -2236,6 +2496,59 @@
     flex-wrap: wrap;
     gap: 0.6rem;
     margin-top: 1.3rem;
+  }
+  /* Share one card: who holds this card's key. */
+  .share {
+    margin-top: 1rem;
+    padding: 0.8rem 0.9rem;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.45);
+  }
+  .share-head {
+    margin: 0 0 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--muted);
+  }
+  .share-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    min-height: 44px;
+  }
+  .share-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .share-state {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .share-key {
+    min-height: 40px;
+    padding: 0 0.9rem;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-weight: 700;
+    background: rgba(255, 255, 255, 0.6);
+    border: 1.5px solid var(--line);
+    color: var(--ink);
+  }
+  .share-key.on {
+    background: var(--teal);
+    border-color: var(--teal);
+    color: #fff;
+  }
+  .share-key:disabled {
+    opacity: 0.55;
   }
   .primary,
   .ghost {

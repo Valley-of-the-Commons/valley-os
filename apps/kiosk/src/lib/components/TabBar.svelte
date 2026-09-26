@@ -13,11 +13,9 @@
     userMenuOpen,
     searchQuery,
     searchSuggestions,
-    categoryColors,
     now,
-    rotating,
     autoRotates,
-    idle,
+    rotating,
     flipProgress,
     reorderTabs,
     hiddenTabs,
@@ -26,6 +24,7 @@
   } from "$lib/stores";
   import type { TabId } from "$lib/stores";
   import { moveId } from "$lib/taborder";
+  import { noteColor } from "$lib/palette";
   import { currentUser, displayName } from "$lib/auth";
   import { requestClose } from "$lib/dock";
   import { resolveAddTipSeen, markAddTipSeen } from "$lib/config";
@@ -41,8 +40,8 @@
   // flips with it, both write `setTabShown`); a drag — straight away with a
   // mouse, after the hold on touch, so a quick swipe still scrolls the strip
   // — carries the tab to a new slot, and that order persists
-  // (`reorderTabs`). Edit mode ends on a tap anywhere else or when the kiosk
-  // goes idle. A hold or a drag swallows the click that follows, so no
+  // (`reorderTabs`). Edit mode ends on a tap anywhere else or when the screen
+  // is left unattended. A hold or a drag swallows the click that follows, so no
   // gesture both rearranges and navigates. Pinning lives on the active
   // tab's pin button.
   const LONG_PRESS_MS = 480;
@@ -218,7 +217,7 @@
     editing = false;
     addOpen = false;
   }
-  $: if ($idle) {
+  $: if ($rotating) {
     editing = false;
     addOpen = false;
     // A callout nobody was there to read is not spent: it waits for the
@@ -231,15 +230,52 @@
   // the tabs drop to icons (the phone layout), and if even the icons overflow
   // the strip scrolls sideways. Re-measured when the tabs, the language, or
   // the width change.
+  // On a wide screen the strip first tries the header's own row (`merged`,
+  // see the CSS): brand | tabs | search | account. Two rows of chrome spend
+  // a fifth of a desktop's height before the board starts, and the top row
+  // is mostly empty. The names keep priority over the merge, though: if they
+  // don't fit in the room the row leaves them, the strip drops back beneath
+  // the header at full width, where they do — icons-alone is a phone's
+  // layout, not a desktop's.
+  const WIDE = "(min-width: 1280px)";
   let compact = false;
+  let merged = false;
   let fitWidth = 0;
+  let fitRun = 0;
   async function fit() {
     if (!nav) return;
+    const run = ++fitRun;
     compact = false;
+    merged = typeof window !== "undefined" && window.matchMedia(WIDE).matches;
     await tick();
-    if (!nav) return;
-    compact = nav.scrollWidth > nav.clientWidth + 1;
+    if (!nav || run !== fitRun) return;
+    if (merged && overflows()) {
+      merged = false;
+      await tick();
+      if (!nav || run !== fitRun) return;
+    }
+    compact = overflows();
     fitWidth = nav.clientWidth;
+  }
+  // Overflow is judged from layout widths, not `scrollWidth`: a tab mid-flip
+  // carries a transform toward where it was, which scrollWidth counts and
+  // would read as overflow. offsetWidth rounds to whole pixels, so allow a
+  // half-pixel per tab before calling it overflow.
+  function overflows(): boolean {
+    if (!nav) return false;
+    const gap = parseFloat(getComputedStyle(nav).columnGap) || 0;
+    let need = 0;
+    let n = 0;
+    for (const el of Array.from(nav.children) as HTMLElement[]) {
+      const cs = getComputedStyle(el);
+      need +=
+        el.offsetWidth +
+        (parseFloat(cs.marginLeft) || 0) +
+        (parseFloat(cs.marginRight) || 0);
+      n++;
+    }
+    need += gap * Math.max(0, n - 1);
+    return need > nav.clientWidth + Math.ceil(n / 2) + 1;
   }
   $: ($visibleTabs, $locale, void fit());
   onMount(() => {
@@ -247,14 +283,20 @@
       if (nav && nav.clientWidth !== fitWidth) void fit();
     });
     ro.observe(nav);
+    // Crossing the wide breakpoint re-decides the merge even when the strip's
+    // own width happens not to change.
+    const wide = window.matchMedia(WIDE);
+    const onWide = () => void fit();
+    wide.addEventListener("change", onWide);
     if (!resolveAddTipSeen()) {
       addTipTimer = setTimeout(() => {
         addTipTimer = null;
-        if ($hiddenTabs.length && !$idle) addTip = true;
+        if ($hiddenTabs.length && !$rotating) addTip = true;
       }, 900);
     }
     return () => {
       ro.disconnect();
+      wide.removeEventListener("change", onWide);
       if (addTipTimer) clearTimeout(addTipTimer);
     };
   });
@@ -284,9 +326,9 @@
     searchFocused &&
     ($searchSuggestions.categories.length > 0 ||
       $searchSuggestions.people.length > 0);
-  // When the kiosk goes idle the chrome hides — release focus so the panel
-  // doesn't linger and the field re-opens cleanly on the next tap.
-  $: if ($idle && searchInput) searchInput.blur();
+  // Once the screen is left unattended, release focus so the panel doesn't
+  // linger and the field re-opens cleanly on the next tap.
+  $: if ($rotating && searchInput) searchInput.blur();
 
   function applySuggestion(term: string) {
     searchQuery.set(
@@ -317,14 +359,10 @@
   }
 </script>
 
-<!-- The whole header retreats when no one's touching the screen, so the board
-     stands alone; any interaction (handled at the window level) brings it back.
-     `aria-hidden` while idle keeps it out of the accessibility tree too. -->
 <header
   class="bar"
-  class:idle={$idle}
+  class:merged
   class:suggest-open={suggestOpen || addOpen || addTip}
-  aria-hidden={$idle}
 >
   <div class="top">
     <div class="brand">
@@ -388,7 +426,7 @@
                     cat.toLowerCase()}
                   class:on={$searchQuery.trim().toLowerCase() ===
                     cat.toLowerCase()}
-                  style="--dot: {$categoryColors.get(cat) ?? 'var(--line)'}"
+                  style="--dot: {noteColor(cat)}"
                   on:pointerdown|preventDefault
                   on:click={() => applySuggestion(cat)}
                 >
@@ -646,26 +684,11 @@
     flex: 0 0 auto;
     /* Sides align with the surface's frame below (`--frame` on .kiosk). */
     padding: 0.7rem var(--frame, 0.4rem) 0;
-    /* `max-height` (a value safely above the real header height) lets the bar
-       collapse smoothly so the board reclaims the space when idle. */
-    max-height: 16rem;
     overflow: hidden;
-    transition:
-      opacity 0.5s ease,
-      max-height 0.5s ease,
-      padding 0.5s ease;
   }
-  .bar.idle {
-    opacity: 0;
-    max-height: 0;
-    padding-top: 0;
-    padding-bottom: 0;
-    pointer-events: none;
-  }
-  /* The bar clips (overflow hidden) so it can collapse when idle; while the
-     suggestion panel, the "+" menu or its first-visit callout is open it must
-     be allowed to hang below the header. Going idle blurs the field and
-     drops the callout first, so the collapse always clips again. */
+  /* The bar clips its contents; while the suggestion panel, the "+" menu or
+     its first-visit callout is open it must be allowed to hang below the
+     header. */
   .bar.suggest-open {
     overflow: visible;
   }
@@ -1271,5 +1294,72 @@
   .fill.paused {
     background: var(--note-coral);
     transition: none;
+  }
+
+  /* Wide screens: the header is one row. Two rows of chrome (brand + search
+     + account above, the tabs beneath) spend a fifth of a desktop's height
+     before the board starts, and the top row is mostly empty space between
+     its three groups. So from a laptop up the strip slides into that space:
+     brand | tabs … | search | account · clock · ✕, browser-style. The tabs
+     size to their names and sit next to the brand; the search and the
+     account group keep the right edge. `.top` becomes a transparent wrapper
+     so its three groups and the strip share the one flex row, ordered by
+     `order`. The script (`fit`) sets `.merged` only while the names fit in
+     the room the row leaves them; otherwise the strip keeps its own row at
+     full width, tightened a little, below. */
+  @media (min-width: 1280px) {
+    .bar {
+      padding-top: 0.45rem;
+    }
+    .tabs {
+      margin-top: 0.2rem;
+      padding-top: 0.4rem;
+    }
+    .tab {
+      padding: 0.3rem 0.6rem 0.4rem;
+      min-height: 2rem;
+    }
+  }
+  .bar.merged {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding-top: 0.4rem;
+  }
+  .bar.merged .top {
+    display: contents;
+  }
+  .bar.merged .brand {
+    order: 0;
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+  .bar.merged .brand .wordmark {
+    max-width: 14rem;
+  }
+  .bar.merged .strip {
+    order: 1;
+    flex: 0 1 auto;
+    min-width: 0;
+    /* Sits on the bar's bottom edge, so the active tab still opens into the
+       surface below. */
+    align-self: flex-end;
+  }
+  .bar.merged .tabs {
+    margin-top: 0;
+  }
+  .bar.merged .tab {
+    flex: 0 0 auto;
+    padding: 0.35rem 0.9rem 0.45rem;
+  }
+  .bar.merged .search {
+    order: 2;
+    flex: 0 0 auto;
+    width: clamp(11rem, 16vw, 20rem);
+    margin: 0 0 0 auto;
+  }
+  .bar.merged .right {
+    order: 3;
+    flex: 0 0 auto;
   }
 </style>

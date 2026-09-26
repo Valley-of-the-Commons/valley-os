@@ -44,6 +44,8 @@
   } from "$lib/config";
   import { themeMode, startTheme } from "$lib/theme";
   import { langMode, holonLang, startI18n, tr, type Lang } from "$lib/i18n";
+  import { writeAcceptance } from "@holons/core/holosphere";
+  import { sessionKeyPub } from "$lib/sessionKey";
   import { loadSettings } from "@holons/core/settings";
   import { get } from "svelte/store";
   import {
@@ -56,6 +58,7 @@
     showNotice,
     holonName,
     holonId as holonIdStore,
+    writeStanding,
     partnerNames,
     brandName,
     brandLogo,
@@ -93,8 +96,6 @@
     startClock,
     startRotation,
     noteInteraction,
-    revealChrome,
-    idle,
     activeTab,
     requestedTab,
     visibleTabs,
@@ -124,6 +125,8 @@
   import { startShifts } from "$lib/shifts";
   import { hubTimezone } from "$lib/programme";
   import { startSwAutoReload } from "$lib/swUpdate";
+  import { startInstallWatcher } from "$lib/install";
+  import { manifestHref, startPathFor } from "$lib/manifest";
   import type { Quest } from "@holons/core/tasks";
   import type { LibraryItem } from "@holons/core/library";
   import type { Role } from "@holons/core/roles";
@@ -476,7 +479,41 @@
     }
     const id = boundHolon;
     if (id) getHolosphere().then((hs) => hydratePartnerNames(hs, id));
+    if (id) void refreshStanding(id);
   }
+
+  // ── Where this key stands ───────────────────────────────────────────────
+  //
+  // Reads are enforced: a hub with a defined authority shows only accepted
+  // keys' writes to everyone else. A person whose key is not accepted here
+  // still sees their own changes (their store holds them) and would never
+  // learn nobody else does — so the standing is computed on bind and on
+  // every session-key change, shown in the account menu, and said once per
+  // hub and key as a notice.
+  const standingSaid = new Set<string>();
+  async function refreshStanding(id: string) {
+    let hs: HoloSphere;
+    try {
+      hs = await getHolosphere();
+    } catch {
+      return;
+    }
+    const key = hs.currentPubkey;
+    try {
+      const { status } = await writeAcceptance(hs, id, key);
+      if (id !== boundHolon || key !== hs.currentPubkey) return;
+      writeStanding.set(status);
+      const mark = `${id}|${key}`;
+      if (status === "held" && get(currentUser) && !standingSaid.has(mark)) {
+        standingSaid.add(mark);
+        showNotice(tr("layout.heldWrites"), 6000);
+      }
+    } catch {
+      writeStanding.set(null);
+    }
+  }
+  $: if ($sessionKeyPub !== undefined && boundHolon)
+    void refreshStanding(boundHolon);
 
   // ── Write-echo watchdog ─────────────────────────────────────────────────--
   //
@@ -631,6 +668,7 @@
       startTheme(),
       startI18n(),
       startSwAutoReload(),
+      startInstallWatcher(),
       // The Shifts feed follows the holonId store on its own; it reads a
       // relay, not Holosphere, so it lives outside refresh().
       startShifts(),
@@ -661,6 +699,23 @@
   // the front door: the dock (the map, by default) with this device's hubs
   // on it, and the board-only overlays stood down.
   $: isHome = !isAbout && !booting && !$holonIdStore;
+
+  // The home screen icon belongs to the board on show: named for the hub and
+  // opening on it (lib/manifest.ts), so "Add to Home Screen" — ours in the
+  // user menu or the browser's own — installs THIS hub, not the front door.
+  // The static manifest in app.html stands until a holon is known.
+  $: appName = isHome || isAbout ? "" : $brandName || $holonName || "";
+  $: if (mounted) {
+    const start = isAbout
+      ? "/"
+      : startPathFor($holonIdStore, {
+          hostname: $page.url.hostname,
+          pathname: $page.url.pathname,
+        });
+    document
+      .querySelector('link[rel="manifest"]')
+      ?.setAttribute("href", manifestHref(start, appName));
+  }
 
   // The dock/window state follows a CHANGE of holon made outside the morphs:
   // a board named without one (the about page's paste field, Settings)
@@ -937,56 +992,19 @@
   }
 
   // Any pointer/touch/key/scroll counts as someone using the screen → pause
-  // the auto-flip (and keep the chrome up while it is up). It never brings
-  // the chrome OUT: a tap on the board is about the board. Capture phase so
-  // it fires before view handlers.
+  // the auto-flip. Capture phase so it fires before view handlers.
   function onActivity() {
     noteInteraction();
   }
 
-  // ── Reaching for the chrome ──────────────────────────────────────────────
-  // The header hides for an immersive board and comes back only on a
-  // deliberate reach for it: the mouse touching the top edge of the screen,
-  // or a finger swiping down from it — the same gesture every phone uses
-  // for its own top bar. A touch that starts lower, or a mouse moving about
-  // the board, is left to the board.
-  const EDGE_MOUSE_PX = 4;
-  const EDGE_TOUCH_PX = 56;
-  const EDGE_SWIPE_PX = 36;
-  let edgeTouch: { id: number; y: number } | null = null;
-
   // Mouse movement (no click) also counts as presence, but fires constantly —
   // throttle it so we don't reset the stores on every pixel.
   let lastMove = 0;
-  function onMove(e: PointerEvent) {
-    if (e.pointerType === "mouse" && e.clientY <= EDGE_MOUSE_PX) {
-      if ($idle) revealChrome();
-      return;
-    }
+  function onMove() {
     const t = Date.now();
     if (t - lastMove < 400) return;
     lastMove = t;
     noteInteraction();
-  }
-  function onTouchStart(e: TouchEvent) {
-    noteInteraction();
-    const t = e.touches[0];
-    edgeTouch =
-      e.touches.length === 1 && t && t.clientY <= EDGE_TOUCH_PX
-        ? { id: t.identifier, y: t.clientY }
-        : null;
-  }
-  function onTouchMove(e: TouchEvent) {
-    if (!edgeTouch) return;
-    const t = Array.from(e.touches).find((x) => x.identifier === edgeTouch!.id);
-    if (!t) return;
-    if (t.clientY - edgeTouch.y >= EDGE_SWIPE_PX) {
-      edgeTouch = null;
-      if ($idle) revealChrome();
-    }
-  }
-  function onTouchEnd() {
-    edgeTouch = null;
   }
 </script>
 
@@ -1002,14 +1020,13 @@
   {:else if !isAbout}
     <title>{$brandName || $holonName || $holonIdStore || "Holons"}</title>
   {/if}
+  <!-- iOS labels the home screen icon from this, ahead of the manifest. -->
+  <meta name="apple-mobile-web-app-title" content={appName || "Holons"} />
 </svelte:head>
 
 <svelte:window
   on:pointerdown|capture={onActivity}
-  on:touchstart|capture={onTouchStart}
-  on:touchmove|capture={onTouchMove}
-  on:touchend|capture={onTouchEnd}
-  on:touchcancel|capture={onTouchEnd}
+  on:touchstart|capture={onActivity}
   on:keydown|capture={onActivity}
   on:wheel|capture={onActivity}
   on:pointermove|capture={onMove}
@@ -1028,11 +1045,11 @@
   {/if}
 
   {#if $dockState !== "dock" && $holonIdStore}
-    <div class="kiosk" class:idle={$idle} bind:this={windowEl}>
+    <div class="kiosk" bind:this={windowEl}>
       <!-- The whole tab interface is one card floating in the space — the
            same sky the dock shows — so closing it into a circle reads as
            the card shrinking into its place among the others. -->
-      <div class="card" class:idle={$idle}>
+      <div class="card">
         <TabBar />
         <main class="stage">
           <slot />
@@ -1106,8 +1123,7 @@
       var(--paper-deep);
     /* The sky around the card, and the frame the surface keeps inside it
        (used by TabBar and the tab page), are thin — the board is the thing —
-       and on a phone all but gone. Both close up entirely once the chrome
-       hides. */
+       and on a phone all but gone. */
     --sky: clamp(0.15rem, 0.5vw, 0.5rem);
     --frame: clamp(0.15rem, 0.8vw, 0.7rem);
     padding: calc(env(safe-area-inset-top) + var(--sky))
@@ -1115,7 +1131,6 @@
       calc(env(safe-area-inset-bottom) + var(--sky))
       calc(env(safe-area-inset-left) + var(--sky));
     overflow: hidden;
-    transition: padding 0.5s ease; /* the header's own fade timing */
   }
   @media (max-width: 560px), (max-height: 560px) {
     .kiosk {
@@ -1123,11 +1138,6 @@
       --frame: 0.1rem;
     }
   }
-  .kiosk.idle {
-    padding: env(safe-area-inset-top) env(safe-area-inset-right)
-      env(safe-area-inset-bottom) env(safe-area-inset-left);
-  }
-
   .card {
     flex: 1;
     min-height: 0;
@@ -1147,17 +1157,6 @@
       0 22px 54px rgba(0, 0, 0, 0.3),
       var(--shadow-soft);
     overflow: hidden;
-    transition:
-      border-radius 0.5s ease,
-      border-color 0.5s ease;
-  }
-  /* With the chrome gone (idle) the card takes the whole screen: the sky
-     around it closes up (no padding) and its corners square off, so the
-     board stands edge to edge. Any touch brings the frame back with the
-     header, on the header's own timing. */
-  .card.idle {
-    border-radius: 0;
-    border-color: transparent;
   }
 
   .stage {

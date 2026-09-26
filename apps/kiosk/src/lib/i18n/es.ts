@@ -67,10 +67,6 @@ export const es: Record<MessageKey, Msg> = {
     "Riega las plantas\nArregla la puerta\nOrganiza la cena",
   "tasks.adding": "Añadiendo…",
   "tasks.add": "Añadir",
-  "tasks.loginPersonal":
-    "Inicia sesión para ver las tareas en las que participas ✶",
-  "tasks.emptyPersonal":
-    "Aún no hay nada a tu nombre — únete a una tarea para verla aquí ✶",
   "tasks.emptyBacklog": "No hay tareas pendientes. ✶",
 
   // Swipe deck
@@ -88,7 +84,7 @@ export const es: Record<MessageKey, Msg> = {
   "swipe.allCaughtUp": "Todo al día",
   "swipe.roundSummary": "{joins} uniones · {likes} me gusta en esta ronda",
   "swipe.startOver": "Empezar de nuevo",
-  "swipe.seeMine": "Ver mis tareas",
+  "swipe.seeList": "Ver la lista",
   "swipe.backToWall": "Volver a los pósits",
   "swipe.skipAria": "Saltar esta tarea",
   "swipe.skipTitle": "Saltar",
@@ -121,7 +117,6 @@ export const es: Record<MessageKey, Msg> = {
   "lists.removeItemAria": "Quitar {item}",
   "lists.addItemPlaceholder": "Añadir un elemento…",
   "lists.newItemAria": "Nuevo elemento",
-  "lists.loginPersonal": "Inicia sesión para ver tus listas ✶",
   "lists.empty": "Aún no hay listas — empieza una con ＋",
   "lists.startList": "Empezar una lista",
   "lists.startLead": "Una lista compartida que cualquiera aquí puede marcar.",
@@ -139,9 +134,10 @@ export const es: Record<MessageKey, Msg> = {
   "cal.verbResize": "redimensionar",
   "cal.allDay": "todo el día",
   "cal.dayOfSpan": "día {span}",
+  "cal.moreEvents": { one: "+{n} más", other: "+{n} más" },
+  "cal.dayEvents": { one: "{n} evento", other: "{n} eventos" },
   "cal.previous": "Anterior",
   "cal.next": "Siguiente",
-  "cal.loginEvents": "Inicia sesión para ver tus eventos ✶",
   "cal.newMoon": "Luna nueva",
   "cal.fullMoon": "Luna llena",
   "cal.moonWaxingCrescent": "Luna creciente",
@@ -206,8 +202,6 @@ export const es: Record<MessageKey, Msg> = {
   "rolesv.prevWeek": "Semana anterior",
   "rolesv.nextWeek": "Semana siguiente",
   "rolesv.today": "Hoy",
-  "rolesv.loginPersonal": "Inicia sesión para ver tus roles ✶",
-  "rolesv.emptyPersonal": "Aún no hay roles a tu nombre — toma un día ✪",
   "rolesv.empty": "Aún no hay roles. ✪",
   "rolesv.fixedRole": "Rol fijo",
   "rolesv.fixed": "Fijo",
@@ -234,15 +228,10 @@ export const es: Record<MessageKey, Msg> = {
 
   // Library status chips
   "library.available": "disponible",
-  "library.returnBy": "devolver {when}",
-  "library.withYou": "contigo",
   "library.outWith": "prestado · {who}",
   "library.out": "prestado",
 
   // Library view
-  "library.loginPersonal": "Inicia sesión para ver lo que tienes prestado ✶",
-  "library.emptyPersonal":
-    "Nada prestado ahora — toca un objeto para llevártelo ✶",
   "library.emptyShared": "Aún no hay objetos compartidos.",
   "library.prevItem": "Objeto anterior",
   "library.nextItem": "Objeto siguiente",
@@ -278,8 +267,6 @@ export const es: Record<MessageKey, Msg> = {
   "shifts.loading": "Leyendo el calendario de turnos…",
   "shifts.empty": "Aún no hay turnos en el calendario.",
   "shifts.noMatch": "Ningún turno coincide con la búsqueda.",
-  "shifts.loginPersonal": "Inicia sesión para ver tus turnos ✶",
-  "shifts.emptyPersonal": "Aún no hay turnos a tu nombre — toma uno ✪",
   "shifts.now": "Ahora",
   "shifts.full": "Completo",
   "shifts.signedUp": { one: "{n} apuntado", other: "{n} apuntados" },
@@ -402,11 +389,8 @@ export const es: Record<MessageKey, Msg> = {
   "pills.calendarView": "Vista del calendario",
 
   // Show (scope) pill
-  "scope.personal": "Personal",
-  "scope.local": "Local",
-  "scope.global": "Federación",
-  "scope.show": "Mostrar",
-  "scope.aria": "Qué elementos mostrar",
+  "scope.federated": "Federados",
+  "scope.aria": "Mostrar también los elementos de los holones federados",
 
   // Header bar
   "tabbar.search": "Buscar…",
@@ -549,14 +533,30 @@ export const es: Record<MessageKey, Msg> = {
   "menu.notSignedIn": "Sesión no iniciada",
   "menu.dashboard": "Abrir el panel completo",
   "menu.settings": "Ajustes",
+  "menu.myHolon": "Abrir mi holon",
   "menu.homePage": "Mostrar la página de inicio",
   "menu.logout": "Cerrar sesión",
   "menu.signingAs": "Firmando como {key}",
+  "menu.accepted": "Tu clave cuenta en este hub",
+  "menu.held":
+    "En espera — este hub aún no ha aceptado tu clave, así que solo esta pantalla ve tus cambios",
+  "layout.heldWrites":
+    "Este hub aún no ha aceptado tu clave — tus cambios se quedan en esta pantalla hasta que lo haga.",
   "menu.loginTelegram": "Entrar con Telegram",
   "menu.login": "Iniciar sesión",
+  "menu.install": "Añadir a la pantalla de inicio",
+  "install.hint": "Abre {name} como una app — un toque, a pantalla completa.",
+  "install.iosShare": "Toca el botón Compartir en la barra del navegador",
+  "install.iosAdd": "Desplázate y elige “Añadir a pantalla de inicio”",
+  "install.iosConfirm": "Toca “Añadir”",
+  "install.manual":
+    "Abre el menú del navegador y elige “Instalar app” o “Añadir a pantalla de inicio”.",
+  "install.done": "Añadida a la pantalla de inicio",
 
   // Completion confirmation
   "complete.title": "¿Completar esta tarea?",
+  "complete.leadHosts":
+    "Este evento tiene anfitriones: el crédito es para ellos. Desmarca a quien no haya sido anfitrión.",
   "complete.lead":
     "Confirma quién participó — se le acreditará en la contabilidad del holón.",
   "complete.addMemberAria": "Añadir un miembro",
@@ -651,6 +651,25 @@ export const es: Record<MessageKey, Msg> = {
   "settings.checking": "Comprobando…",
   "settings.change": "Cambiar…",
   "settings.setLocation": "Fijar la ubicación…",
+  "settings.privacy": "Lentes privadas",
+  "settings.privacySub":
+    "— selladas en los relés; solo las claves que entregues pueden leerlas",
+  "settings.privacyLogin":
+    "Inicia sesión con tu clave para hacer privada una lente.",
+  "settings.privacyAria": "{lens}: {state}",
+  "settings.privacyPrivate": "privada",
+  "settings.privacyPublic": "pública",
+  "settings.privacyHint":
+    "Una lente privada mantiene sellado lo que contiene. Comparte una lente entera desde el dock, o una sola tarjeta desde su detalle.",
+  "settings.privacyFailed":
+    "No se pudo cambiar esa lente — inténtalo de nuevo.",
+  "settings.privacyShared": "compartida con {n}",
+  "settings.hubKey": "Clave del hub {key}",
+  "settings.hubKeyLog": "fundado, su lista de miembros está firmada",
+  "settings.hubKeyOwn": "este hub es su propia clave",
+  "settings.hubKeyBoot": "de su propia configuración firmada",
+  "settings.hubKeyNone":
+    "Aún sin clave firmada: no se pueden compartir llaves con este hub, y cada escritura cuenta hasta que su bot lo funde.",
   "settings.onMap": "En el mapa",
   "settings.onMapSub":
     "— lo que este holón pone en el mapa compartido, y desde qué lejos se ve",
@@ -691,6 +710,16 @@ export const es: Record<MessageKey, Msg> = {
   "fed.unlink": "Desvincular {name}",
   "fed.linkError": "No se pudo vincular ese holón — inténtalo de nuevo.",
   "fed.changeError": "El cambio no se guardó — inténtalo de nuevo.",
+  "fed.keyShare": "Compartir la clave de {lens} con {name}",
+  "fed.keyRevoke": "Retirar la clave de {lens} a {name}",
+  "fed.keyNoPubkey": "{name} no tiene una clave con la que compartir.",
+  "fed.keyError": "El cambio de clave no se guardó — inténtalo de nuevo.",
+  "fed.privateHint":
+    "Una lente con candado es privada: la flecha abre el flujo, la llave comparte el contenido.",
+  "fed.keyToOwn": "Las llaves para {name} van a su propia clave {key}.",
+  "fed.keyToAnchor": "Las llaves para {name} van a su clave firmada {key}.",
+  "fed.keyNoAnchor":
+    "{name} aún no tiene una clave firmada — su bot tiene que fundarlo antes de poder compartir una llave.",
   "fed.unlinkError": "La desvinculación no se guardó — inténtalo de nuevo.",
 
   // Location (hex) picker
@@ -784,11 +813,32 @@ export const es: Record<MessageKey, Msg> = {
   "detail.newCategoryPlaceholder": "Nombre de la nueva categoría",
   "detail.pickFromList": "Elegir de la lista",
   "detail.newCategory": "Nueva categoría…",
+  "detail.shareWith": "Compartir con…",
+  "detail.shareTitle": "Compartir la clave de esta tarjeta con",
+  "detail.shareNoPartners": "No hay holones federados con los que compartir.",
+  "detail.shareNoKey": "sin clave con la que compartir",
+  "detail.shared": "Compartida",
+  "detail.notShared": "No compartida",
+  "detail.sharedLens": "Lente entera compartida",
+  "detail.shareDone": "Clave compartida con {name}.",
+  "detail.unshareDone": "Clave retirada a {name}.",
+  "detail.shareFailed": "No se pudo cambiar el uso compartido — {reason}",
   "detail.description": "Descripción",
   "detail.participants": {
     one: "{n} participante",
     other: "{n} participantes",
   },
+  "detail.hostedBy": "Anfitriones",
+  "detail.hosts": "Anfitriones",
+  "detail.hostsHint":
+    "Los anfitriones reciben el crédito del evento. Sin anfitrión, lo recibe quien participa.",
+  "detail.addHost": "Añadir un anfitrión…",
+  "detail.removeHost": "Quitar a {name} como anfitrión",
+  "detail.participantsLabel": "Participantes",
+  "detail.participantsHint":
+    "Quién participa. Añade o quita a cualquiera; quien participa deja de apreciar.",
+  "detail.addParticipant": "Añadir un participante…",
+  "detail.removeParticipant": "Quitar a {name} de los participantes",
   "detail.leaveTitle": "Dejar esta tarea",
   "detail.joinedLeave": "Unido · dejar",
   "detail.appreciatedLabel": "Apreciada",
@@ -843,8 +893,6 @@ export const es: Record<MessageKey, Msg> = {
   // Status leaderboard
   "status.tallying": "Sumando contribuciones… ♛",
   "status.noActivity": "Aún no hay actividad clasificada. ♛",
-  "status.loginPersonal": "Inicia sesión para ver tu posición ✶",
-  "status.emptyPersonal": "Aún no hay nada clasificado a tu nombre. ♛",
   "status.seeScore": "Mira cómo se formó la puntuación de {name}",
   "status.disclaimerLead":
     "La tecnología recuerda. El sentido lo dan las personas.",
@@ -943,6 +991,8 @@ export const es: Record<MessageKey, Msg> = {
   "voice.plan.kind.update": "Cambio",
   "voice.plan.kind.participants": "Participantes",
   "voice.plan.kind.complete": "Completar",
+  "voice.plan.kind.hosts": "Anfitriones",
+  "voice.plan.field.hosts": "Anfitriones",
   "voice.plan.field.title": "Título",
   "voice.plan.field.description": "Descripción",
   "voice.plan.field.category": "Categoría",
@@ -1123,6 +1173,7 @@ export const es: Record<MessageKey, Msg> = {
   "flows.unitAbout":
     "Una sola unidad para el movimiento y las personas. Una moneda también fija los saldos.",
   "flows.windowWeek": "Esta semana",
+  "flows.windowLunation": "Esta luna",
   "flows.windowMonth": "Este mes",
   "flows.windowYear": "Este año",
   "flows.windowCustom": "Personalizado",
@@ -1169,6 +1220,26 @@ export const es: Record<MessageKey, Msg> = {
   "flows.accountOverBy": "Excedido por",
   "flows.accountVia": "A través de",
   "flows.accountNoPot": "Los importes aparecen cuando se conecta un colectivo.",
+  "flows.claimAction": "Reclamar",
+  "flows.claimOpens": "Envía un gasto en OpenCollective",
+  "flows.claimRecord": "Registrar una reclamación",
+  "flows.claimAmount": "Importe",
+  "flows.claimMemo": "Para qué",
+  "flows.claimNoSigner":
+    "La firma no está configurada para este acceso: aquí no se puede registrar una reclamación.",
+  "flows.claimsProvisional":
+    "Este holon aún no está fundado: quién cuenta es provisional hasta que el bot firme sus miembros.",
+  "flows.claimsReview": "Reclamaciones por revisar",
+  "flows.claimAttest": "Atestiguar",
+  "flows.claimDispute": "Disputar",
+  "flows.claimPaid": "Pagada",
+  "flows.claimStatus.approved": "Aprobada",
+  "flows.claimStatus.pending": "Esperando atestación",
+  "flows.claimStatus.disputed": "Disputada",
+  "flows.claimStatus.over": "Más allá del derecho",
+  "flows.claimStatus.conflict": "Conflicto",
+  "flows.claimStatus.settled": "Pagada",
+  "flows.claimStatus.rejected": "No contada",
   "flows.peopleTitle": "Entre personas",
   "flows.peopleAbout":
     "Quién dio qué a quién — cada flecha apunta a quien lo recibió.",
@@ -1305,7 +1376,7 @@ export const es: Record<MessageKey, Msg> = {
   "alloc.splitEquationAbout":
     "Dividida por puntuación de contribución, como la ecuación de valor ordena hoy a los miembros.",
   "alloc.splitCustomAbout":
-    "La parte de cada miembro del fondo de los contribuidores. Las partes cuentan en proporción entre sí, no tienen que sumar 100.",
+    "Escribe cualquier número — 1, 2, 3 o porcentajes. La parte de cada uno es su número sobre el total, así que no tienen que sumar 100.",
   "alloc.splitScored": "ecuación {pct}%",
   "alloc.splitTotal": "Total",
   "alloc.splitEmpty":
@@ -1328,6 +1399,49 @@ export const es: Record<MessageKey, Msg> = {
   "alloc.tabZonesSummary": "{n} zonas",
   "alloc.tabFund": "Fondo",
   "alloc.tabFundEmpty": "sin vincular",
+  "vote.title": "Voto",
+  "vote.tally": "Sí {yes} · No {no} · Abstención {abstain} · de {total}",
+  "vote.passing": "aprobada",
+  "vote.notPassing": "no aprobada",
+  "vote.provisional":
+    "Este holón aún no está fundado: quién cuenta es provisional hasta que el bot firme a sus miembros.",
+  "vote.yours": "Tu voto",
+  "vote.signIn": "Inicia sesión para votar",
+  "vote.noSigner":
+    "La firma no está configurada para este acceso, así que aquí no se puede registrar un voto.",
+  "vote.choice.yes": "Sí",
+  "vote.choice.no": "No",
+  "vote.choice.abstain": "Abstención",
+  "vote.status.counted": "Contado",
+  "vote.status.superseded": "Reemplazado",
+  "vote.status.pending": "Pendiente de atestación",
+  "vote.status.disputed": "Disputado",
+  "vote.status.rejected": "No contado",
+  "alloc.tabRules": "Reglas",
+  "alloc.tabRulesSummary": "quórum {quorum}",
+  "alloc.rulesAbout":
+    "Cómo se juzgan las reclamaciones sobre el fondo: quién puede hacer una, quién atesta, cuántas atestaciones cuentan y qué pasa si dos toman de lo mismo. La palabra firmada de un admin, guardada en el registro de reglas del holón.",
+  "alloc.rulesAuthors": "Quién puede reclamar",
+  "alloc.rulesAttesters": "Quién atesta",
+  "alloc.rulesQuorum": "Atestaciones necesarias",
+  "alloc.rulesConflict": "Dos sobre la misma base",
+  "alloc.rulesConflictEarliest": "gana la primera",
+  "alloc.rulesConflictQuorum": "decide una persona",
+  "alloc.rulesRole.admin": "admins",
+  "alloc.rulesRole.member": "miembros",
+  "alloc.rulesPartners": "Socios cuyas reclamaciones cuentan",
+  "alloc.rulesPartnersAbout":
+    "Un socio con un derecho sobre este fondo lo reclama en su propio registro; fija su clave y sus reclamaciones aceptadas entran aquí, juzgadas por estas reglas.",
+  "alloc.rulesPartnerPinned": "fijada",
+  "alloc.rulesPin": "Fijar su clave",
+  "alloc.rulesPartnerNoKey": "sin clave publicada",
+  "alloc.rulesSave": "Fijar las reglas",
+  "alloc.rulesSaved": "Reglas registradas.",
+  "alloc.rulesNotAdmin":
+    "Solo la firma de un admin fija las reglas; la tuya quedaría registrada pero no contada.",
+  "alloc.rulesNoSigner":
+    "La firma no está configurada para este acceso, así que aquí no se pueden fijar las reglas.",
+  "alloc.rulesUnchanged": "Estas ya son las reglas en vigor.",
   "alloc.splitAbout":
     "Los contribuidores son las personas que hicieron el trabajo. Las zonas de reciprocidad son los grupos y personas con quienes este holon comparte en relación.",
   // Stock board (the `stock` lens + REA stock events)

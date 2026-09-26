@@ -1,6 +1,7 @@
 <script lang="ts">
   // SPDX-License-Identifier: AGPL-3.0-or-later
   import Icon from "$lib/components/Icon.svelte";
+  import { personName } from "$lib/data";
   // Confirm who took part before a completion is recorded — the participant set
   // drives the REA accounting, so this keeps credit honest. Toggle people off
   // who didn't actually participate, and add anyone from the holon's members
@@ -15,12 +16,14 @@
   import { currentUser } from "$lib/auth";
   import { loadMembers, type Member } from "$lib/members";
   import { t } from "$lib/i18n";
-  import type { Quest } from "@holons/core/tasks";
+  import { hostsOf, type Quest } from "@holons/core/tasks";
 
   type Row = { key: string; name: string; on: boolean; user: Member };
 
   let task: Quest | null = null;
   let rows: Row[] = [];
+  // The task is an event that names hosts: they are who gets credited.
+  let hosted = false;
   let members: Member[] = []; // the holon's `users` lens
 
   // Rebuild whenever a new request arrives.
@@ -33,9 +36,15 @@
     }
     if (req.task === task) return;
     task = req.task;
-    const list = (
-      Array.isArray(task.participants) ? task.participants : []
-    ) as Member[];
+    // An event that names hosts credits THEM (core's creditedMembers), so the
+    // dialog confirms the hosts instead of the participants.
+    const hostList = hostsOf(task) as Member[];
+    hosted = hostList.length > 0;
+    const list = hosted
+      ? hostList
+      : ((Array.isArray(task.participants)
+          ? task.participants
+          : []) as Member[]);
     rows = list.map((p, i) => ({
       key: String(p?.id ?? p?.username ?? `p${i}`),
       name: partName(p),
@@ -48,6 +57,7 @@
     // quietly hand you a share of the credit.
     const me = get(currentUser);
     if (
+      !hosted &&
       me?.id != null &&
       !rows.some((r) => String(r.user?.id) === String(me.id))
     )
@@ -66,8 +76,7 @@
   }
 
   function partName(p: Member): string {
-    const full = [p?.first_name, p?.last_name].filter(Boolean).join(" ").trim();
-    return full || (p?.username ? `@${p.username}` : `#${p?.id ?? "?"}`);
+    return personName(p);
   }
   function initial(p: Member): string {
     return (p?.first_name?.[0] ?? p?.username?.[0] ?? "·").toUpperCase();
@@ -112,7 +121,9 @@
         first_name: r.user?.first_name,
         last_name: r.user?.last_name,
       }));
-    const adjusted: Quest = { ...req.task, participants };
+    const adjusted: Quest = hosted
+      ? { ...req.task, hosts: participants }
+      : { ...req.task, participants };
     completionRequest.set(null);
     req.onConfirm(adjusted);
   }
@@ -123,7 +134,9 @@
     <div class="confirm">
       <div class="glyph" aria-hidden="true"><Icon name="party" /></div>
       <h3>{$t("complete.title")}</h3>
-      <p class="lead">{$t("complete.lead")}</p>
+      <p class="lead">
+        {hosted ? $t("complete.leadHosts") : $t("complete.lead")}
+      </p>
 
       <ul class="people">
         {#each rows as r, i (r.key)}

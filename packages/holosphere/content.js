@@ -7,7 +7,7 @@
 // rules in `put` are field-incident scar tissue and are kept verbatim.
 
 import { warnHologramUnresolvedOnce, clearHologramUnresolvedWarning } from './hologram.js';
-import { isTombstone } from './store/store.js';
+import { isTombstone, isLocked } from './store/store.js';
 import * as PrivateOps from './private-ops.js';
 
 const isGlobalHolon = (holon) => holon === null || holon === undefined || holon === '';
@@ -15,6 +15,17 @@ const isGlobalHolon = (holon) => holon === null || holon === undefined || holon 
 /** Is this lens canonically carried on a standard Nostr kind? */
 const isStandardPrimary = (holoInstance, lens) =>
     !!holoInstance?.store?.wire?.isStandardPrimary?.(lens);
+
+/**
+ * An append-only lens (see `log.js`) has no slot to overwrite and no record
+ * to tombstone: an entry, once signed, is what happened. `put` and `delete`
+ * refuse it loudly rather than degrade into a phantom replaceable record.
+ */
+function refuseAppendOnly(holoInstance, lens, op) {
+    if (holoInstance?.store?.wire?.isAppend?.(lens)) {
+        throw new Error(`${op}: lens '${lens}' is append-only — entries are added with append() and never replaced or deleted`);
+    }
+}
 
 /**
  * What a standard-primary lens cannot do, and why it throws instead of quietly
@@ -35,6 +46,7 @@ const isStandardPrimary = (holoInstance, lens) =>
  * record.
  */
 function refuseUnsupported(holoInstance, holon, lens, data, options) {
+    refuseAppendOnly(holoInstance, lens, 'put');
     if (!isStandardPrimary(holoInstance, lens)) return options;
     const where = `lens '${lens}' is carried on a standard Nostr kind`;
     // The shapes the ENCODING cannot express come first: they are true of any
@@ -131,7 +143,7 @@ function commit(holoInstance, holon, lens, key, item, options = {}) {
     let event = null;
     if (!options._skipSign && !local && signer) {
         try {
-            event = signer.signEnvelope(holoInstance, holon, lens, item, { skipProjections: !!options._skipProjections });
+            event = signer.signEnvelope(holoInstance, holon, lens, item, { skipProjections: !!options._skipProjections, content: options._content });
         } catch (e) {
             console.warn('[signing] signEnvelope failed:', e?.message);
         }
@@ -150,6 +162,7 @@ function commit(holoInstance, holon, lens, key, item, options = {}) {
                 key: String(key),
                 signedEvent: event,
                 skipProjections: !!options._skipProjections,
+                content: options._content,
             });
         } catch (e) {
             console.warn('[nostr] publish failed:', e?.message);
@@ -342,7 +355,17 @@ export async function put(holoInstance, holon, lens, data, password = null, opti
         if (String(dataToStore.id) !== String(targetKey)) dataToStore.id = targetKey;
 
         const wireHolon = normHolon(targetHolon);
-        commit(holoInstance, wireHolon, targetLens, targetKey, dataToStore, options);
+        // Private lens: the envelope carries ciphertext (see privacy.js). A
+        // tombstone stays plain — it says nothing but "gone". Projections are
+        // off for a sealed write: a standard-kind twin would be the plaintext.
+        let commitOptions = options;
+        let sealedContent = typeof options._sealedContent === 'string' ? options._sealedContent : null;
+        if (!sealedContent && holoInstance._privacy && !isGlobal && dataToStore._deleted !== true
+            && await holoInstance._privacy.shouldSeal(wireHolon, targetLens, options)) {
+            sealedContent = JSON.stringify(await holoInstance._privacy.seal(wireHolon, targetLens, dataToStore, options));
+        }
+        if (sealedContent) commitOptions = { ...options, _content: sealedContent, _skipProjections: true };
+        commit(holoInstance, wireHolon, targetLens, targetKey, dataToStore, commitOptions);
 
         // --- Start: Active Hologram Update Logic ---
         //
@@ -499,7 +522,7 @@ export async function put(holoInstance, holon, lens, data, password = null, opti
                 runPropagation(); // Background — don't block the write.
             }
         } else if (options.autoPropagate !== false && !isHologram && !isGlobal
-                   && !isStandardPrimary(holoInstance, lens)) {
+                   && !isStandardPrimary(holoInstance, lens) && !sealedContent) {
             // The home-hex mirror — the one fan-out nobody has to ask for.
             //
             // A caretaker who ticked "quests → my home hex" meant every quest,
@@ -559,6 +582,9 @@ export async function get(holoInstance, holon, lens, key, password = null, optio
         // for tombstoned records by default; pass `includeDeleted: true` to
         // surface them (admin/debug views, history reconstruction, etc.).
         includeDeleted = false,
+        // A sealed record this instance holds no key for reads as `null`;
+        // `includeLocked: true` surfaces the `{ id, _locked: true }` stub.
+        includeLocked = false,
     } = options;
 
     // Get schema for validation if in strict mode. Reads of the global
@@ -580,6 +606,7 @@ export async function get(holoInstance, holon, lens, key, password = null, optio
         if (!parsed) return null;
 
         if (!includeDeleted && parsed._deleted === true) return null;
+        if (!includeLocked && isLocked(parsed)) return null;
 
         // Check if this is a hologram that needs to be resolved
         if (resolveHolograms && holoInstance.isHologram(parsed)) {
@@ -652,6 +679,7 @@ export async function getAll(holoInstance, holon, lens, password = null, options
     }
     const {
         includeDeleted = false,
+        includeLocked = false,
         resolveHolograms = true,
     } = options;
 
@@ -667,7 +695,7 @@ export async function getAll(holoInstance, holon, lens, password = null, options
 
     try {
         const output = new Map();
-        const records = holoInstance.store.list(normHolon(holon), lens, { includeDeleted: true });
+        const records = holoInstance.store.list(normHolon(holon), lens, { includeDeleted: true, includeLocked });
 
         const processItem = async (rec) => {
             const key = rec.id;
@@ -785,6 +813,7 @@ export async function deleteFunc(holoInstance, holon, lens, key, password = null
         throw new Error('delete: Missing required parameters');
     }
     if (password) return PrivateOps.deleteFunc(holoInstance, holon, lens, key, password);
+    refuseAppendOnly(holoInstance, lens, 'delete');
 
     try {
         const wireHolon = normHolon(holon);
@@ -855,6 +884,7 @@ export async function deleteAll(holoInstance, holon, lens, password = null, opti
         return false;
     }
     if (password) return PrivateOps.deleteAll(holoInstance, holon, lens, password);
+    refuseAppendOnly(holoInstance, lens, 'deleteAll');
 
     try {
         const wireHolon = normHolon(holon);

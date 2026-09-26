@@ -4,7 +4,9 @@
 	import { page } from '$app/stores';
 	import { browser } from '$app/environment';
 	import { handshake } from "holosphere"
-	import { createHoloSphere, resolveRelays } from '@holons/core/holosphere';
+	import { createHoloSphere, resolveEnforce, resolveRelays } from '@holons/core/holosphere';
+	import { FLOW_CLAIMS_LENS } from '@holons/core/flows';
+	import { GOVERNANCE_VOTES_LENS } from '@holons/core/governance';
 	import { hexToBytes } from '@noble/hashes/utils';
 	import Layout from '../dashboard/Layout.svelte';
 	import Splash from '../components/Splash.svelte';
@@ -526,7 +528,13 @@
 			privateKey: hexToBytes(privateKey),
 			relays,
 			store: { adapter: 'indexeddb' },
+			// Fund claims and votes are append-only logs (kind 1808), signed here
+			// with the member's own derived key (see components/flows/Flows.svelte,
+			// components/governance/ProposalVote.svelte).
+			appendLenses: [FLOW_CLAIMS_LENS, GOVERNANCE_VOTES_LENS],
 			nostr: projectionOptions,
+			// Authorized reads (VITE_HOLOSPHERE_ENFORCE=off reads the open graph).
+			enforce: resolveEnforce(import.meta.env.VITE_HOLOSPHERE_ENFORCE),
 			awaitReady: true,
 		});
 

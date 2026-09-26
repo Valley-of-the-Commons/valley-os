@@ -79,6 +79,22 @@ tags: [["h", holon|"_g"], ["l", lens], ["d", "holon/lens/id"], ["n", appname]]
   signing layer uses); receivers store the tombstone, and normal reads
   filter it.
 
+### Append-only lenses — kind 1808
+
+```
+kind 1808 (regular: stored, never replaced), content = JSON(body)
+tags: [["h", holon|"_g"], ["l", lens], ["e", <id>, "", prev|basis|attests|disputes]*, ["n", appname]]
+```
+
+A lens registered as append-only (`appendLenses` / `registerAppendLens`)
+rides this kind instead of 30078: no `d` tag, every event its own record
+addressed by its event id, so nothing ever supersedes an entry (`STORE.md`,
+"Append-only lenses"). `append` / `appendSigned` write, `getLog` /
+`subscribeLog` read oldest first. The sync filter is
+`{ kinds:[1808], #h, #l, #n }` on its own wire (`std:1808`) and cursor. What
+the log folds into is decided by the reader (`@holons/core/protocol`), not
+here.
+
 ## Projections — standard kinds next to 30078
 
 The 30078 record is opaque to every other Nostr client. With projection
@@ -187,6 +203,17 @@ does nothing.
 Generic host API: `holosphere.publishNostrEvents(events)`,
 `holosphere.subscribeNostr(filter, onevent)`, `holosphere.nostrRelays()`.
 
+## Sealed content (private lenses)
+
+A private lens keeps the envelope above and seals only `content`:
+`{ enc: 'nip44', v: 1, kid, ct, k }` — the item under its own content key,
+that key under the lens key. The owner's keys live in a self-sealed
+`_vault` record of the holon; a lens key or one item's content key reaches
+a pubkey as a NIP-17 DM (subject `holons/grant`), which the recipient's
+instance accepts on its own. Readers without a key hold locked stubs and see
+nothing. No standard-kind projection is emitted for a sealed write, and the
+reverse sync ignores private lenses. See `PRIVACY.md`.
+
 ## Semantics & limits
 
 - **Conflicts** are last-writer-wins by event `created_at` (second
@@ -197,15 +224,16 @@ Generic host API: `holosphere.publishNostrEvents(events)`,
 - **Private (password) lenses never touch the relay.** They are NIP-44
   encrypted with a scrypt-derived key (`store/private.js`, parameters frozen
   in `STORE.md`), access-controlled by the password, and remain local to the
-  device.
+  device. **Private lenses** (`PRIVACY.md`) DO travel — sealed — and are
+  readable by whoever holds a key.
 - **Read-key hydration at init is local-only** (the transport isn't up yet
   when the signer is built). If your federation read-list lives remotely,
   call `refreshReadKeys()` after the first sync.
 - **Relay policy**: the spike relay config is open; production should
   restrict writes (NIP-42 auth / allow-list) — see `spike/README.md`.
 - **Browser storage**: the IndexedDB adapter (`holosphere:<appName>`)
-  holds records, events, cursors and private lenses; a quota error degrades
-  to memory with a warning.
+  holds records, events, cursors, private lenses and received keys; a quota
+  error degrades to memory with a warning.
 
 ## Wiring in the monorepo
 

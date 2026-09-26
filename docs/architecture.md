@@ -69,7 +69,8 @@ import { createHoloSphere } from '@holons/core/holosphere';
 Each domain lives at `packages/core/src/<domain>/index.ts`. Current domains:
 `scoring`, `tasks`, `federation`, `holosphere`, `users`, `expenses`,
 `calendar`, `shopping`, `settings`, `dna`, `library`, `checklists`,
-`categories`, `commands`, `rea`. The `package.json` wildcard
+`categories`, `commands`, `rea`, `protocol` (the reduce over append-only
+logs — see [`protocol.md`](./protocol.md)). The `package.json` wildcard
 export (`"./*"`) makes a new domain folder importable immediately — no edit
 to the barrel needed.
 
@@ -119,6 +120,17 @@ cache (`packages/holosphere/STORE.md`).
   — and external edits of those kinds fold back into the record.
 - Private (password) lenses are NIP-44 encrypted with a scrypt-derived key
   and never leave the device.
+- A **private lens** (`packages/holosphere/PRIVACY.md`, `@holons/core/privacy`)
+  travels sealed: the envelope's tags stay public, `content` is NIP-44
+  ciphertext under a per-item key wrapped by the lens key. The owner's keys
+  sit in a self-sealed `_vault` record; a lens or a single item is shared
+  with a pubkey by a NIP-17 grant. Revocation rotates and rewrites
+  (forward-only). Never private: settings, membership, users, logs,
+  standard-kind lenses.
+- An **append-only lens** (`appendLenses`, e.g. `flow_claims`) rides the
+  regular kind 1808 instead: every signed entry is its own record, never
+  replaced; readers fold the log themselves (`@holons/core/protocol`,
+  [`protocol.md`](./protocol.md)).
 - Configure per surface: web `VITE_HOLOSPHERE_RELAYS`,
   kiosk `VITE_KIOSK_RELAYS`, bot/mcp `HOLOSPHERE_RELAYS` +
   `HOLOSPHERE_STORE_DIR`. Unset relays mean the production relay set.
