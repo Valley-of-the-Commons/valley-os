@@ -10,7 +10,6 @@
     countStars,
     deriveSwapState,
     starId,
-    type CommentKind,
     type Programme,
     type Session,
     type SwapRequest,
@@ -32,10 +31,7 @@
   export let ambient = false;
   export let onEdit: () => void;
   export let onStar: () => Promise<ActionResult>;
-  export let onComment: (
-    kind: CommentKind,
-    body: string,
-  ) => Promise<ActionResult>;
+  export let onComment: (body: string) => Promise<ActionResult>;
   export let onRequestSwap: (fromSessionId: string) => Promise<ActionResult>;
   export let onAccept: (swap: SwapRequest) => Promise<ActionResult>;
   export let onDecide: (
@@ -124,7 +120,6 @@
     }).format(new Date(iso));
   }
 
-  let kind: CommentKind = "note";
   let body = "";
   let posting = false;
   let notice = "";
@@ -134,7 +129,7 @@
   async function post() {
     if (!body.trim()) return;
     posting = true;
-    const r = await onComment(kind, body);
+    const r = await onComment(body);
     posting = false;
     if (r.ok) body = "";
   }
@@ -286,17 +281,8 @@
     <section class="comments" aria-label={$t("sessionDetail.comments")}>
       <h5>{$t("sessionDetail.comments")}</h5>
       {#each comments as c (c.id)}
-        <p class="comment {c.kind}">
-          <span class="kind"
-            >{$t(
-              c.kind === "note"
-                ? "sessionDetail.kindNote"
-                : c.kind === "link"
-                  ? "sessionDetail.kindLink"
-                  : "sessionDetail.kindQuestion",
-            )}</span
-          >
-          {#if c.kind === "link" && webUrl(c.body)}<a
+        <p class="comment">
+          {#if webUrl(c.body)}<a
               href={webUrl(c.body)}
               target="_blank"
               rel="noopener noreferrer">{c.body}</a
@@ -307,11 +293,6 @@
       {/each}
       {#if loggedIn && !ambient}
         <form class="composer" on:submit|preventDefault={post}>
-          <select bind:value={kind} aria-label={$t("sessionDetail.comments")}>
-            <option value="note">{$t("sessionDetail.kindNote")}</option>
-            <option value="link">{$t("sessionDetail.kindLink")}</option>
-            <option value="question">{$t("sessionDetail.kindQuestion")}</option>
-          </select>
           <input
             type="text"
             bind:value={body}
@@ -443,14 +424,6 @@
     line-height: 1.4;
     overflow-wrap: anywhere;
   }
-  .kind {
-    display: inline-block;
-    margin-right: 0.4rem;
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
   .empty {
     margin: 0;
     color: var(--muted);
@@ -458,7 +431,7 @@
   }
   .composer {
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: 1fr auto;
     gap: 0.4rem;
     margin-top: 0.5rem;
   }

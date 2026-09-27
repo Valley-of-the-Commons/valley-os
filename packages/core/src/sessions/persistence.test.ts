@@ -65,6 +65,18 @@ describe('buildProgramme', () => {
   });
 });
 
+describe('comments', () => {
+  const comment = { id: 'c1', sessionId: 's1', body: 'Bring shoes?', createdBy: 'telegram:5', createdAt: '2026-09-25T09:00:00.000Z' };
+
+  it('a comment is plain text: no kind is needed', () => {
+    expect(buildProgramme({ comments: [comment] }).comments).toEqual([comment]);
+  });
+
+  it('an older comment that still carries a kind loads without it', () => {
+    expect(buildProgramme({ comments: [{ ...comment, kind: 'question' }] }).comments).toEqual([comment]);
+  });
+});
+
 describe('writers', () => {
   it('saveSession writes to the sessions lens', async () => {
     const { writer, puts } = fakeWriter();

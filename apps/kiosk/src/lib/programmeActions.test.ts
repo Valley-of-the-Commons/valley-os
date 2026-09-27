@@ -255,12 +255,9 @@ describe("stars and comments", () => {
 
   it("adds a public comment; a blank one is refused", async () => {
     const c = ctx();
-    expect((await programmeActions(c).addComment("s1", "note", "  ")).ok).toBe(
-      false,
-    );
+    expect((await programmeActions(c).addComment("s1", "  ")).ok).toBe(false);
     expect(
-      (await programmeActions(c).addComment("s1", "question", "Bring shoes?"))
-        .ok,
+      (await programmeActions(c).addComment("s1", "Bring shoes?")).ok,
     ).toBe(true);
     expect(c.puts).toEqual([
       {
@@ -268,7 +265,6 @@ describe("stars and comments", () => {
         data: {
           id: "new-id",
           sessionId: "s1",
-          kind: "question",
           body: "Bring shoes?",
           url: null,
           createdBy: "telegram:5",
@@ -278,12 +274,19 @@ describe("stars and comments", () => {
     ]);
   });
 
+  it("a comment that is just a web address keeps it as its link", async () => {
+    const c = ctx();
+    await programmeActions(c).addComment("s1", " https://example.org/slides ");
+    expect(c.puts[0].data).toMatchObject({
+      body: "https://example.org/slides",
+      url: "https://example.org/slides",
+    });
+  });
+
   it("logged out cannot star or comment", async () => {
     const c = ctx({ tier: "logged-out", viewerUid: null });
     expect((await programmeActions(c).toggleStar("s1")).ok).toBe(false);
-    expect((await programmeActions(c).addComment("s1", "note", "hi")).ok).toBe(
-      false,
-    );
+    expect((await programmeActions(c).addComment("s1", "hi")).ok).toBe(false);
     expect(c.puts).toEqual([]);
   });
 });

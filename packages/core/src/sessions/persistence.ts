@@ -126,6 +126,16 @@ function withNested(parse: (raw: unknown) => SwapRequest | null) {
   };
 }
 
+/** Comments are plain text; older records still carry a note/link/question kind, dropped here. */
+function withoutKind(parse: (raw: unknown) => Comment | null) {
+  return (raw: unknown): Comment | null => {
+    const c = parse(raw);
+    if (!c) return null;
+    const { kind: _kind, ...rest } = c as Comment & { kind?: unknown };
+    return rest;
+  };
+}
+
 const PARSERS: { [K in ProgrammeLens]: (raw: unknown) => Programme[K][number] | null } = {
   sessions: parser<Session>(['id', 'roomId', 'title', 'createdBy'], ['startsAt', 'endsAt', 'createdAt'], (r) =>
     (r.type === 'session' || r.type === 'keynote') &&
@@ -137,8 +147,7 @@ const PARSERS: { [K in ProgrammeLens]: (raw: unknown) => Programme[K][number] | 
   tags: parser<Tag>(['id', 'name']),
   breaks: parser<Break>(['id', 'label'], [], (r) => isNum(r.startMin) && isNum(r.endMin) && r.endMin > r.startMin),
   stars: parser<Star>(['id', 'sessionId', 'uid'], ['createdAt']),
-  comments: parser<Comment>(['id', 'sessionId', 'body', 'createdBy'], ['createdAt'], (r) =>
-    r.kind === 'note' || r.kind === 'link' || r.kind === 'question'),
+  comments: withoutKind(parser<Comment>(['id', 'sessionId', 'body', 'createdBy'], ['createdAt'])),
   swaps: withNested(
     parser<SwapRequest>(['id', 'fromSessionId', 'targetSessionId', 'createdBy'], ['createdAt', 'expiresAt'], (r) =>
       isOutcome(r.outcome) && isSnapshot(r.snapshot) && (r.proposedAlt == null || isSlot(r.proposedAlt, false))),

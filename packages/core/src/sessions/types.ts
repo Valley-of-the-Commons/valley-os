@@ -3,7 +3,6 @@
 export type SessionType = 'keynote' | 'session';
 export type SwapOutcome = 'accepted-apply' | 'declined' | 'withdrawn';
 export type WriteTier = 'admin' | 'logged-in' | 'logged-out';
-export type CommentKind = 'note' | 'link' | 'question';
 
 export interface Room {
   id: string;
@@ -74,7 +73,6 @@ export interface Star {
 export interface Comment {
   id: string;
   sessionId: string;
-  kind: CommentKind;
   body: string;
   url?: string | null;
   createdBy: string;

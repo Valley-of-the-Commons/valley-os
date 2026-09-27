@@ -22,7 +22,6 @@ import {
   starId,
   starSession,
   unstarSession,
-  type CommentKind,
   type LensWriter,
   type Programme,
   type Room,
@@ -33,6 +32,7 @@ import {
   type WriteTier,
   decideSwap as decideSwapRule,
 } from "@holons/core/sessions";
+import { safeWebUrl } from "./programmeTime";
 
 /** The admin-managed name lists, and the permission noun each uses. */
 const NAMED = {
@@ -193,12 +193,8 @@ export function programmeActions(ctx: ActionContext) {
       );
     },
 
-    async addComment(
-      sessionId: string,
-      kind: CommentKind,
-      body: string,
-      url: string | null = null,
-    ): Promise<ActionResult> {
+    /** A plain comment; one that is just a web address also keeps it as its link. */
+    async addComment(sessionId: string, body: string): Promise<ActionResult> {
       if (!me || !canPerform(ctx.tier, "comment")) return refused();
       const text = body.trim();
       if (!text) return refused("invalid");
@@ -207,9 +203,8 @@ export function programmeActions(ctx: ActionContext) {
         await saveComment(ctx.writer, {
           id,
           sessionId,
-          kind,
           body: text,
-          url,
+          url: safeWebUrl(text),
           createdBy: me,
           createdAt: ctx.now(),
         }),

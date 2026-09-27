@@ -58,12 +58,7 @@
     type ProgrammeViewMode,
     type ShiftItem,
   } from "$lib/programmeGrid";
-  import {
-    instantFor,
-    shiftDate,
-    todayIn,
-    safeWebUrl,
-  } from "$lib/programmeTime";
+  import { instantFor, shiftDate, todayIn } from "$lib/programmeTime";
   import type { ActionResult, SessionDraft } from "$lib/programmeActions";
   import ProgrammeGrid from "$lib/components/ProgrammeGrid.svelte";
   import SessionEditor from "$lib/components/SessionEditor.svelte";
@@ -846,17 +841,8 @@
     contested={contestedIds.has(detail.id)}
     onEdit={editDetail}
     onStar={() => onDetail((d) => run([d.id], (a) => a.toggleStar(d.id)))}
-    onComment={(kind, body) =>
-      onDetail((d) =>
-        run([], (a) =>
-          a.addComment(
-            d.id,
-            kind,
-            body,
-            kind === "link" ? safeWebUrl(body) : null,
-          ),
-        ),
-      )}
+    onComment={(body) =>
+      onDetail((d) => run([], (a) => a.addComment(d.id, body)))}
     onRequestSwap={(fromId) =>
       onDetail((d) => run([], (a) => a.requestSwap(fromId, d.id, null)))}
     onAccept={(swap) =>

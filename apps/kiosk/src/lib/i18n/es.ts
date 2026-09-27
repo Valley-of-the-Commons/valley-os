@@ -1842,9 +1842,6 @@ export const es: Record<MessageKey, Msg> = {
   "sessionDetail.noComments": "Aún no hay comentarios.",
   "sessionDetail.commentPlaceholder":
     "Añade una nota, un enlace o una pregunta",
-  "sessionDetail.kindNote": "Nota",
-  "sessionDetail.kindLink": "Enlace",
-  "sessionDetail.kindQuestion": "Pregunta",
   "sessionDetail.post": "Publicar",
   "sessionDetail.edit": "Editar",
   "sessionDetail.byYou": "Tu sesión",
